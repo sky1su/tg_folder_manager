@@ -70,11 +70,12 @@ class ConfigLoader:
         with open(config_path, encoding='utf-8') as f:
             cfg = yaml.safe_load(f) or {}
 
-        # Загружаем настройки экспорта
+        # Загружаем настройки
         settings = cfg.get('settings', {})
         export_settings = {
             'enabled': settings.get('export_enabled', False),
-            'filename': settings.get('export_filename', 'folders_export.yaml')
+            'filename': settings.get('export_filename', 'folders_export.yaml'),
+            'dry_run': settings.get('dry_run', False)
         }
 
         folders_cfg = cfg.get('folders', {})
@@ -135,7 +136,8 @@ class TelegramFolderManager:
     def __init__(
             self,
             unmatched_strategy: UnmatchedChatsStrategy = UnmatchedChatsStrategy.IGNORE,
-            warn_on_duplicates: bool = True
+            warn_on_duplicates: bool = True,
+            dry_run: bool = False
     ):
         load_dotenv()
         session = getenv('app_title', 'telegram_session')
@@ -146,18 +148,25 @@ class TelegramFolderManager:
         self.client = TelegramClient(session, int(api_id), api_hash)
         self.strategy = unmatched_strategy
         self.warn_dupes = warn_on_duplicates
+        self.dry_run = dry_run
         self._chat_map: Dict[int, ChatInfo] = {}
         self._folder_map: Dict[int, FolderInfo] = {}
         self._chat_folders: Dict[int, List[str]] = defaultdict(list)
 
     async def __aenter__(self):
         await self.client.start()
-        logger.info('✔ Connected to Telegram')
+        if self.dry_run:
+            logger.info('✔ Connected to Telegram (DRY RUN MODE - no changes will be made)')
+        else:
+            logger.info('✔ Connected to Telegram')
         return self
 
     async def __aexit__(self, *args):
         await self.client.disconnect()
-        logger.info('✔ Disconnected from Telegram')
+        if self.dry_run:
+            logger.info('✔ Disconnected from Telegram (DRY RUN MODE)')
+        else:
+            logger.info('✔ Disconnected from Telegram')
 
     async def get_chats(self) -> List[ChatInfo]:
         dialogs = await self.client.get_dialogs()
@@ -239,10 +248,11 @@ class TelegramFolderManager:
         else:
             logger.info("📊 Папки не найдены")
 
-    async def export_folders_to_yaml(self, filename: str):
+    async def export_folders_to_yaml(self, filename: str, dry_run: bool = False):
         """Экспорт папок и чатов в YAML файл"""
         export_data = {
             'export_date': datetime.now().isoformat(),
+            'dry_run': dry_run,
             'folders': {}
         }
 
@@ -274,10 +284,20 @@ class TelegramFolderManager:
         with open(filename, 'w', encoding='utf-8') as f:
             yaml.dump(export_data, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
 
-        logger.info(f'📤 Экспортировано {len(self._folder_map)} папок в файл "{filename}"')
+        if dry_run:
+            logger.info(f'📤 [DRY RUN] Экспортировано {len(self._folder_map)} папок в файл "{filename}"')
+        else:
+            logger.info(f'📤 Экспортировано {len(self._folder_map)} папок в файл "{filename}"')
 
     async def organize_chats_by_config(self, config_path: str):
-        include_pats, exclude_pats, export_settings = ConfigLoader.load_config(config_path)
+        include_pats, exclude_pats, settings = ConfigLoader.load_config(config_path)
+
+        # Устанавливаем режим dry-run из конфига
+        self.dry_run = settings.get('dry_run', False)
+
+        if self.dry_run:
+            logger.warning('⚠️ DRY RUN MODE ENABLED - Никакие изменения не будут применены к Telegram')
+
         chats = await self.get_chats()
         await self._build_map()
 
@@ -288,7 +308,7 @@ class TelegramFolderManager:
         if self.warn_dupes:
             dup = await self._find_duplicates()
             if dup:
-                logger.warning('⚠ Duplicates found:')
+                logger.warning('⚠ Дубликаты обнаружены:')
                 for d in dup:
                     logger.warning(f'  {d.chat_title}: {", ".join(d.folders)}')
 
@@ -313,8 +333,11 @@ class TelegramFolderManager:
         self._print_folder_stats()
 
         # Экспорт если включён
-        if export_settings.get('enabled', False):
-            await self.export_folders_to_yaml(export_settings.get('filename', 'folders_export.yaml'))
+        if settings.get('enabled', False):
+            await self.export_folders_to_yaml(
+                settings.get('filename', 'folders_export.yaml'),
+                dry_run=self.dry_run
+            )
 
     async def _process_folder(self, name: str, ids: Set[int]):
         title_ent = TextWithEntities(text=name, entities=[])
@@ -326,8 +349,25 @@ class TelegramFolderManager:
             to_add = ids - cur
             to_remove = cur - ids
             if to_add or to_remove:
+                if not self.dry_run:
+                    df = DialogFilter(
+                        id=fi.id, title=title_ent,
+                        pinned_peers=[], include_peers=peers,
+                        exclude_peers=[], contacts=False,
+                        non_contacts=False, groups=False,
+                        broadcasts=False, bots=False,
+                        exclude_muted=False, exclude_read=False,
+                        exclude_archived=False, emoticon=None
+                    )
+                    await self.client(UpdateDialogFilterRequest(id=fi.id, filter=df))
+                    logger.info(f'✎ Updated folder "{name}" ({len(peers)} chats)')
+                else:
+                    logger.info(f'✎ [DRY RUN] Would update folder "{name}" ({len(peers)} chats)')
+        else:
+            nid = max(self._folder_map.keys(), default=1) + 1
+            if not self.dry_run:
                 df = DialogFilter(
-                    id=fi.id, title=title_ent,
+                    id=nid, title=title_ent,
                     pinned_peers=[], include_peers=peers,
                     exclude_peers=[], contacts=False,
                     non_contacts=False, groups=False,
@@ -335,21 +375,11 @@ class TelegramFolderManager:
                     exclude_muted=False, exclude_read=False,
                     exclude_archived=False, emoticon=None
                 )
-                await self.client(UpdateDialogFilterRequest(id=fi.id, filter=df))
-                logger.info(f'✎ Updated folder "{name}" ({len(peers)} chats)')
-        else:
-            nid = max(self._folder_map.keys(), default=1) + 1
-            df = DialogFilter(
-                id=nid, title=title_ent,
-                pinned_peers=[], include_peers=peers,
-                exclude_peers=[], contacts=False,
-                non_contacts=False, groups=False,
-                broadcasts=False, bots=False,
-                exclude_muted=False, exclude_read=False,
-                exclude_archived=False, emoticon=None
-            )
-            await self.client(UpdateDialogFilterRequest(id=nid, filter=df))
-            logger.info(f'✚ Created folder "{name}" (ID={nid}, {len(peers)} chats)')
+                await self.client(UpdateDialogFilterRequest(id=nid, filter=df))
+                logger.info(f'✚ Created folder "{name}" (ID={nid}, {len(peers)} chats)')
+            else:
+                logger.info(f'✚ [DRY RUN] Would create folder "{name}" (ID={nid}, {len(peers)} chats)')
+
             self._folder_map[nid] = FolderInfo(
                 id=nid, title=name,
                 include_peers=peers,
@@ -363,21 +393,27 @@ class TelegramFolderManager:
             new_peers = [p for p in other.include_peers if self._peer_id(p) not in ids]
             if len(new_peers) != len(other.include_peers):
                 removed_count = len(other.include_peers) - len(new_peers)
-                df = DialogFilter(
-                    id=other.id,
-                    title=TextWithEntities(text=other.title, entities=[]),
-                    pinned_peers=[], include_peers=new_peers,
-                    exclude_peers=[], contacts=False,
-                    non_contacts=False, groups=False,
-                    broadcasts=False, bots=False,
-                    exclude_muted=False, exclude_read=False,
-                    exclude_archived=False, emoticon=None
-                )
-                await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
-                logger.info(
-                    f'− Removed {removed_count} chat(s) from "{other.title}" '
-                    f'after moving to "{name}"'
-                )
+                if not self.dry_run:
+                    df = DialogFilter(
+                        id=other.id,
+                        title=TextWithEntities(text=other.title, entities=[]),
+                        pinned_peers=[], include_peers=new_peers,
+                        exclude_peers=[], contacts=False,
+                        non_contacts=False, groups=False,
+                        broadcasts=False, bots=False,
+                        exclude_muted=False, exclude_read=False,
+                        exclude_archived=False, emoticon=None
+                    )
+                    await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
+                    logger.info(
+                        f'− Removed {removed_count} chat(s) from "{other.title}" '
+                        f'after moving to "{name}"'
+                    )
+                else:
+                    logger.info(
+                        f'− [DRY RUN] Would remove {removed_count} chat(s) from "{other.title}" '
+                        f'after moving to "{name}"'
+                    )
                 other.include_peers = new_peers
 
     async def _handle_unmatched(self, unmatched: List[ChatInfo], unmatched_folder: str):
@@ -388,7 +424,7 @@ class TelegramFolderManager:
         peers = [c.input_peer for c in unmatched]
 
         if self.strategy == UnmatchedChatsStrategy.LOG_ONLY:
-            logger.warning(f'Unmatched chats ({len(unmatched)}):')
+            logger.warning(f'Несопоставленные чаты ({len(unmatched)}):')
             for c in unmatched:
                 logger.warning(f'  {c.title}')
             return
@@ -405,17 +441,21 @@ class TelegramFolderManager:
                 if pid and pid not in seen:
                     seen.add(pid)
                     unique.append(p)
-            df = DialogFilter(
-                id=fid, title=title_ent,
-                pinned_peers=[], include_peers=unique,
-                exclude_peers=[], contacts=False,
-                non_contacts=False, groups=False,
-                broadcasts=False, bots=False,
-                exclude_muted=False, exclude_read=False,
-                exclude_archived=False, emoticon=None
-            )
-            await self.client(UpdateDialogFilterRequest(id=fid, filter=df))
-            logger.info(f'✚ Moved {len(peers)} unmatched chats to "{unmatched_folder}"')
+
+            if not self.dry_run:
+                df = DialogFilter(
+                    id=fid, title=title_ent,
+                    pinned_peers=[], include_peers=unique,
+                    exclude_peers=[], contacts=False,
+                    non_contacts=False, groups=False,
+                    broadcasts=False, bots=False,
+                    exclude_muted=False, exclude_read=False,
+                    exclude_archived=False, emoticon=None
+                )
+                await self.client(UpdateDialogFilterRequest(id=fid, filter=df))
+                logger.info(f'✚ Moved {len(peers)} unmatched chats to "{unmatched_folder}"')
+            else:
+                logger.info(f'✚ [DRY RUN] Would move {len(peers)} unmatched chats to "{unmatched_folder}"')
 
         elif self.strategy == UnmatchedChatsStrategy.REMOVE_FROM_FOLDERS:
             rem = {c.id for c in unmatched}
@@ -425,15 +465,20 @@ class TelegramFolderManager:
                 if len(kept) != len(other.include_peers):
                     removed_count = len(other.include_peers) - len(kept)
                     total_removed += removed_count
-                    df = DialogFilter(
-                        id=other.id,
-                        title=TextWithEntities(text=other.title, entities=[]),
-                        pinned_peers=[], include_peers=kept,
-                        exclude_peers=[], contacts=False,
-                        non_contacts=False, groups=False,
-                        broadcasts=False, bots=False,
-                        exclude_muted=False, exclude_read=False,
-                        exclude_archived=False, emoticon=None
-                    )
-                    await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
-            logger.info(f'− Removed {total_removed} unmatched chats from all folders')
+                    if not self.dry_run:
+                        df = DialogFilter(
+                            id=other.id,
+                            title=TextWithEntities(text=other.title, entities=[]),
+                            pinned_peers=[], include_peers=kept,
+                            exclude_peers=[], contacts=False,
+                            non_contacts=False, groups=False,
+                            broadcasts=False, bots=False,
+                            exclude_muted=False, exclude_read=False,
+                            exclude_archived=False, emoticon=None
+                        )
+                        await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
+
+            if not self.dry_run:
+                logger.info(f'− Removed {total_removed} unmatched chats from all folders')
+            else:
+                logger.info(f'− [DRY RUN] Would remove {total_removed} unmatched chats from all folders')
