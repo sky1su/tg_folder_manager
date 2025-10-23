@@ -3,6 +3,7 @@ from enum import Enum
 from collections import defaultdict
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from dotenv import load_dotenv
 from os import getenv
@@ -56,6 +57,7 @@ class ChatDuplicateInfo:
     chat_title: str
     chat_id: int
     folders: List[str]
+
     def is_duplicate(self) -> bool:
         return len(self.folders) > 1
 
@@ -63,13 +65,22 @@ class ChatDuplicateInfo:
 class ConfigLoader:
     @staticmethod
     def load_config(config_path: str = 'config.yaml') -> (
-        Dict[str, List[str]], Dict[str, List[str]]
+            Dict[str, List[str]], Dict[str, List[str]], Dict
     ):
         with open(config_path, encoding='utf-8') as f:
             cfg = yaml.safe_load(f) or {}
+
+        # Загружаем настройки экспорта
+        settings = cfg.get('settings', {})
+        export_settings = {
+            'enabled': settings.get('export_enabled', False),
+            'filename': settings.get('export_filename', 'folders_export.yaml')
+        }
+
         folders_cfg = cfg.get('folders', {})
         include_patterns: Dict[str, List[str]] = {}
         exclude_patterns: Dict[str, List[str]] = {}
+
         for name, params in folders_cfg.items():
             inc = params.get('include_patterns', [])
             exc = params.get('exclude_patterns', [])
@@ -79,15 +90,16 @@ class ConfigLoader:
                 exc = [exc] if exc else []
             include_patterns[name] = [p for p in inc if p]
             exclude_patterns[name] = [p for p in exc if p]
-        return include_patterns, exclude_patterns
+
+        return include_patterns, exclude_patterns, export_settings
 
 
 class ChatMatcher:
     @staticmethod
     def match_primary(
-        chat_title: str,
-        include_patterns: Dict[str, List[str]],
-        exclude_patterns: Dict[str, List[str]]
+            chat_title: str,
+            include_patterns: Dict[str, List[str]],
+            exclude_patterns: Dict[str, List[str]]
     ) -> Optional[str]:
         title = chat_title.lower()
         for folder, inc_pats in include_patterns.items():
@@ -121,9 +133,9 @@ class ChatMatcher:
 
 class TelegramFolderManager:
     def __init__(
-        self,
-        unmatched_strategy: UnmatchedChatsStrategy = UnmatchedChatsStrategy.IGNORE,
-        warn_on_duplicates: bool = True
+            self,
+            unmatched_strategy: UnmatchedChatsStrategy = UnmatchedChatsStrategy.IGNORE,
+            warn_on_duplicates: bool = True
     ):
         load_dotenv()
         session = getenv('app_title', 'telegram_session')
@@ -207,13 +219,11 @@ class TelegramFolderManager:
         """Подсчёт количества чатов в каждой папке"""
         folder_counts = defaultdict(int)
         for fi in self._folder_map.values():
-            # Считаем только группы и каналы (не личные чаты)
             chat_count = 0
             for peer in fi.include_peers:
                 peer_id = self._peer_id(peer)
                 if peer_id and peer_id in self._chat_map:
                     chat_info = self._chat_map[peer_id]
-                    # Считаем группы, мегагруппы и каналы
                     if chat_info.is_group or chat_info.is_megagroup or chat_info.is_channel:
                         chat_count += 1
             folder_counts[fi.title] = chat_count
@@ -229,8 +239,45 @@ class TelegramFolderManager:
         else:
             logger.info("📊 Папки не найдены")
 
+    async def export_folders_to_yaml(self, filename: str):
+        """Экспорт папок и чатов в YAML файл"""
+        export_data = {
+            'export_date': datetime.now().isoformat(),
+            'folders': {}
+        }
+
+        for fi in self._folder_map.values():
+            chats_list = []
+            for peer in fi.include_peers:
+                peer_id = self._peer_id(peer)
+                if peer_id and peer_id in self._chat_map:
+                    chat_info = self._chat_map[peer_id]
+                    chat_type = 'channel'
+                    if chat_info.is_group:
+                        chat_type = 'group'
+                    elif chat_info.is_megagroup:
+                        chat_type = 'megagroup'
+
+                    chats_list.append({
+                        'id': chat_info.id,
+                        'title': chat_info.title,
+                        'type': chat_type
+                    })
+
+            export_data['folders'][fi.title] = {
+                'folder_id': fi.id,
+                'chats_count': len(chats_list),
+                'chats': sorted(chats_list, key=lambda x: x['title'])
+            }
+
+        # Сохранение в файл
+        with open(filename, 'w', encoding='utf-8') as f:
+            yaml.dump(export_data, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
+
+        logger.info(f'📤 Экспортировано {len(self._folder_map)} папок в файл "{filename}"')
+
     async def organize_chats_by_config(self, config_path: str):
-        include_pats, exclude_pats = ConfigLoader.load_config(config_path)
+        include_pats, exclude_pats, export_settings = ConfigLoader.load_config(config_path)
         chats = await self.get_chats()
         await self._build_map()
 
@@ -264,6 +311,10 @@ class TelegramFolderManager:
         await self._build_map()
         logger.info("📊 Статистика папок ПОСЛЕ обработки:")
         self._print_folder_stats()
+
+        # Экспорт если включён
+        if export_settings.get('enabled', False):
+            await self.export_folders_to_yaml(export_settings.get('filename', 'folders_export.yaml'))
 
     async def _process_folder(self, name: str, ids: Set[int]):
         title_ent = TextWithEntities(text=name, entities=[])
