@@ -203,10 +203,40 @@ class TelegramFolderManager:
                 dup.append(ChatDuplicateInfo(ci.title, cid, titles))
         return dup
 
+    def _count_chats_in_folders(self) -> Dict[str, int]:
+        """Подсчёт количества чатов в каждой папке"""
+        folder_counts = defaultdict(int)
+        for fi in self._folder_map.values():
+            # Считаем только группы и каналы (не личные чаты)
+            chat_count = 0
+            for peer in fi.include_peers:
+                peer_id = self._peer_id(peer)
+                if peer_id and peer_id in self._chat_map:
+                    chat_info = self._chat_map[peer_id]
+                    # Считаем группы, мегагруппы и каналы
+                    if chat_info.is_group or chat_info.is_megagroup or chat_info.is_channel:
+                        chat_count += 1
+            folder_counts[fi.title] = chat_count
+        return dict(folder_counts)
+
+    def _print_folder_stats(self):
+        """Вывод статистики по папкам"""
+        folder_counts = self._count_chats_in_folders()
+        if folder_counts:
+            logger.info("📊 Статистика папок:")
+            for folder_name, count in sorted(folder_counts.items()):
+                logger.info(f"   📁 {folder_name}: {count} групп/каналов")
+        else:
+            logger.info("📊 Папки не найдены")
+
     async def organize_chats_by_config(self, config_path: str):
         include_pats, exclude_pats = ConfigLoader.load_config(config_path)
         chats = await self.get_chats()
         await self._build_map()
+
+        # Вывод статистики ДО обработки
+        logger.info("📊 Статистика папок ПЕРЕД обработкой:")
+        self._print_folder_stats()
 
         if self.warn_dupes:
             dup = await self._find_duplicates()
@@ -230,6 +260,11 @@ class TelegramFolderManager:
 
         await self._handle_unmatched(unmatched, unmatched_folder='Прочие')
 
+        # Обновляем карту и выводим статистику ПОСЛЕ обработки
+        await self._build_map()
+        logger.info("📊 Статистика папок ПОСЛЕ обработки:")
+        self._print_folder_stats()
+
     async def _process_folder(self, name: str, ids: Set[int]):
         title_ent = TextWithEntities(text=name, entities=[])
         peers = [self._chat_map[i].input_peer for i in ids if i in self._chat_map]
@@ -250,7 +285,7 @@ class TelegramFolderManager:
                     exclude_archived=False, emoticon=None
                 )
                 await self.client(UpdateDialogFilterRequest(id=fi.id, filter=df))
-                logger.info(f'✎ Updated folder "{name}"')
+                logger.info(f'✎ Updated folder "{name}" ({len(peers)} chats)')
         else:
             nid = max(self._folder_map.keys(), default=1) + 1
             df = DialogFilter(
@@ -263,7 +298,7 @@ class TelegramFolderManager:
                 exclude_archived=False, emoticon=None
             )
             await self.client(UpdateDialogFilterRequest(id=nid, filter=df))
-            logger.info(f'✚ Created folder "{name}" (ID={nid})')
+            logger.info(f'✚ Created folder "{name}" (ID={nid}, {len(peers)} chats)')
             self._folder_map[nid] = FolderInfo(
                 id=nid, title=name,
                 include_peers=peers,
@@ -276,6 +311,7 @@ class TelegramFolderManager:
                 continue
             new_peers = [p for p in other.include_peers if self._peer_id(p) not in ids]
             if len(new_peers) != len(other.include_peers):
+                removed_count = len(other.include_peers) - len(new_peers)
                 df = DialogFilter(
                     id=other.id,
                     title=TextWithEntities(text=other.title, entities=[]),
@@ -288,7 +324,8 @@ class TelegramFolderManager:
                 )
                 await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
                 logger.info(
-                    f'− Removed chat(s) from "{other.title}" after adding to "{name}"'
+                    f'− Removed {removed_count} chat(s) from "{other.title}" '
+                    f'after moving to "{name}"'
                 )
                 other.include_peers = new_peers
 
@@ -300,7 +337,7 @@ class TelegramFolderManager:
         peers = [c.input_peer for c in unmatched]
 
         if self.strategy == UnmatchedChatsStrategy.LOG_ONLY:
-            logger.warning('Unmatched chats:')
+            logger.warning(f'Unmatched chats ({len(unmatched)}):')
             for c in unmatched:
                 logger.warning(f'  {c.title}')
             return
@@ -327,13 +364,16 @@ class TelegramFolderManager:
                 exclude_archived=False, emoticon=None
             )
             await self.client(UpdateDialogFilterRequest(id=fid, filter=df))
-            logger.info(f'✚ Moved unmatched chats to "{unmatched_folder}"')
+            logger.info(f'✚ Moved {len(peers)} unmatched chats to "{unmatched_folder}"')
 
         elif self.strategy == UnmatchedChatsStrategy.REMOVE_FROM_FOLDERS:
             rem = {c.id for c in unmatched}
+            total_removed = 0
             for other in self._folder_map.values():
                 kept = [p for p in other.include_peers if self._peer_id(p) not in rem]
                 if len(kept) != len(other.include_peers):
+                    removed_count = len(other.include_peers) - len(kept)
+                    total_removed += removed_count
                     df = DialogFilter(
                         id=other.id,
                         title=TextWithEntities(text=other.title, entities=[]),
@@ -345,4 +385,4 @@ class TelegramFolderManager:
                         exclude_archived=False, emoticon=None
                     )
                     await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
-            logger.info('− Removed unmatched chats from all folders')
+            logger.info(f'− Removed {total_removed} unmatched chats from all folders')
