@@ -1,4 +1,4 @@
-[English](README-en.md) | [Русский](README.md)
+[Русский](README.md) | [**English**](README-en.md)
 # Telegram Folder Manager 
 
 Automation of Telegram folder management. The script allows you to automatically sort chats and channels into folders based on patterns and exclusions, as well as export the folder structure to a YAML file with dry-run mode support.
