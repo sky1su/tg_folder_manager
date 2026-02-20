@@ -70,15 +70,22 @@ class TelegramConfig:
 
 
 class LMStudioConfig:
-    """Конфигурация для подключения к LM Studio из config.yaml."""
+    """Конфигурация для подключения к внешним LLM (LM Studio / GigaChat)."""
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = Path(config_path)
+        self.llm_type = None  # "lmstudio" или "gigachat"
         self.base_url = None
         self.model = None
         self.temperature = None
         self.max_tokens = None
         self.timeout_seconds = None
+
+        # Для GigaChat
+        self.gigachat_auth_method = None  # "credentials" или "token"
+        self.gigachat_client_id = None
+        self.gigachat_secret = None
+        self.gigachat_token = None
 
         self._load_config()
 
@@ -105,34 +112,57 @@ class LMStudioConfig:
 
         llm_config = config['llm_api']
 
-        # Читаем параметры с проверкой
-        self.base_url = llm_config.get('base_url')
+        # Тип модели: lmstudio или gigachat
+        self.llm_type = llm_config.get('type', 'lmstudio').lower()
+        if self.llm_type not in ['lmstudio', 'gigachat']:
+            raise ValueError("llm_api.type должен быть 'lmstudio' или 'gigachat'")
+
+        # Общие параметры
         self.model = llm_config.get('model')
         self.temperature = llm_config.get('temperature')
         self.max_tokens = llm_config.get('max_tokens')
         self.timeout_seconds = llm_config.get('timeout_seconds')
 
-        if not self.base_url:
-            raise ValueError(
-                "Ошибка конфигурации: параметр 'base_url' не найден в config.yaml -> llm_api"
-            )
         if not self.model:
             raise ValueError(
-                "Ошибка конфигурации: параметр 'model' не найден в config.yaml -> llm_api"
+                f"Ошибка конфигурации: параметр 'model' не найден в config.yaml -> llm_api"
             )
 
-        # Конвертируем параметры в нужные типы
+        # Конвертируем общие параметры
         try:
             self.temperature = float(self.temperature) if self.temperature is not None else 0.3
             self.max_tokens = int(self.max_tokens) if self.max_tokens is not None else 500
             self.timeout_seconds = float(self.timeout_seconds) if self.timeout_seconds is not None else 3600.0
         except (ValueError, TypeError) as e:
-            raise ValueError(
-                f"Ошибка конфигурации: параметры должны быть числами: {e}"
-            )
+            raise ValueError(f"Ошибка конфигурации: параметры должны быть числами: {e}")
 
-        logger.info(f"✓ Конфигурация LM Studio загружена из {self.config_path}")
-        logger.info(f"  • Base URL: {self.base_url}")
+        if self.llm_type == 'lmstudio':
+            self.base_url = llm_config.get('base_url')
+            if not self.base_url:
+                raise ValueError(
+                    "Для llm_type=lmstudio требуется base_url в config.yaml -> llm_api"
+                )
+        elif self.llm_type == 'gigachat':
+            auth = llm_config.get('auth', {})
+            self.gigachat_auth_method = auth.get('method', 'credentials')
+            if self.gigachat_auth_method == 'credentials':
+                self.gigachat_client_id = auth.get('client_id')
+                self.gigachat_secret = auth.get('secret')
+                if not self.gigachat_client_id or not self.gigachat_secret:
+                    raise ValueError(
+                        "Для auth.method=credentials требуются client_id и secret"
+                    )
+            elif self.gigachat_auth_method == 'token':
+                self.gigachat_token = auth.get('token')
+                if not self.gigachat_token:
+                    raise ValueError("Для auth.method=token требуется token")
+            else:
+                raise ValueError("auth.method должен быть 'credentials' или 'token'")
+
+        logger.info(f"✓ Конфигурация LLM загружена из {self.config_path}")
+        logger.info(f"  • Type: {self.llm_type}")
+        if self.llm_type == 'lmstudio':
+            logger.info(f"  • Base URL: {self.base_url}")
         logger.info(f"  • Model: {self.model}")
         logger.info(f"  • Temperature: {self.temperature}")
         logger.info(f"  • Max tokens: {self.max_tokens}")
@@ -383,109 +413,121 @@ class MessageFormatter:
 
 
 class LMStudioSummarizer:
-    """Класс для суммаризации сообщений с помощью LM Studio."""
+    """Суммаризация через LM Studio."""
 
     def __init__(self, lm_config: LMStudioConfig):
         self.lm_config = lm_config
 
     async def summarize(self, formatted_text: str) -> str:
-        """
-        Отправляет сообщения в LM Studio для суммаризации.
-
-        Args:
-            formatted_text: Отформатированный текст сообщений
-
-        Returns:
-            str: Суммаризированный текст
-
-        Raises:
-            ValueError: Если текст пуст
-            Exception: Если ошибка при подключении к LM Studio
-        """
         if not formatted_text:
             raise ValueError("Текст сообщений пуст")
 
         try:
             logger.info("📝 Отправляю сообщения в LM Studio для суммаризации...")
-
-            # Используем httpx для прямого HTTP запроса
-            async with httpx.AsyncClient(
-                    timeout=self.lm_config.timeout_seconds
-            ) as client:
-                # Правильный endpoint для LM Studio
+            async with httpx.AsyncClient(timeout=self.lm_config.timeout_seconds) as client:
                 url = f"{self.lm_config.base_url}/v1/chat/completions"
-
                 payload = {
                     "model": self.lm_config.model,
                     "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Ты помощник, который создает краткое резюме диалога. "
-                                "Выделяй ключевые моменты, решения и действия. "
-                                "Форматируй ответ с использованием маркированных списков "
-                                "для лучшей читаемости."
-                            )
-                        },
-                        {
-                            "role": "user",
-                            "content": (
-                                f"Пожалуйста, создай краткое резюме следующего диалога:\n\n"
-                                f"{formatted_text}"
-                            )
-                        }
+                        {"role": "system", "content": (
+                            "Ты профессиональный асситент, который создает краткое резюме диалога. "
+                            "Выделяй ключевые моменты, решения и действия. "
+                            "Форматируй ответ с использованием маркированных списков."
+                        )},
+                        {"role": "user", "content": f"Создай краткое резюме:\n\n{formatted_text}"}
                     ],
                     "temperature": self.lm_config.temperature,
                     "max_tokens": self.lm_config.max_tokens
                 }
-
-                logger.info(f"Отправляю запрос на {url}")
                 response = await client.post(url, json=payload)
-
-                logger.info(f"Статус ответа: {response.status_code}")
-
                 if response.status_code != 200:
-                    error_text = response.text
-                    logger.error(f"Ошибка от LM Studio: {error_text}")
-                    raise Exception(
-                        f"LM Studio вернула ошибку {response.status_code}: {error_text}"
-                    )
-
-                response_json = response.json()
-                logger.debug(f"Ответ JSON: {response_json}")
-
-                # Проверяем наличие choices в ответе
-                if 'choices' not in response_json or not response_json['choices']:
-                    logger.error(f"В ответе нет choices: {response_json}")
-                    raise ValueError("Ответ не содержит choices")
-
-                # Извлекаем текст из первого choice
-                summary = response_json['choices'][0].get('message', {}).get('content', '')
-
-                if not summary:
-                    logger.error(f"Content пустой в ответе: {response_json}")
-                    raise ValueError("Ответ содержит пустой content")
-
-                logger.info("✓ Суммаризация завершена")
-                return summary
-
-        except httpx.ConnectError as e:
-            logger.error(f"✗ Ошибка подключения: {e}")
-            raise Exception(
-                f"Не удается подключиться к LM Studio на {self.lm_config.base_url}. "
-                "Убедитесь, что сервис запущен."
-            )
-        except httpx.TimeoutException as e:
-            logger.error(f"✗ Timeout при ожидании ответа: {e}")
-            raise Exception(
-                f"Timeout: LM Studio слишком долго обрабатывает запрос "
-                f"({self.lm_config.timeout_seconds / 60:.0f} мин). "
-                "Проверьте нагрузку на модель или увеличьте timeout в config.yaml."
-            )
+                    raise Exception(f"Ошибка {response.status_code}: {response.text}")
+                result = response.json()
+                return result['choices'][0]['message']['content']
         except Exception as e:
-            logger.error(f"✗ Ошибка при суммаризации: {e}")
-            logger.error(f"Тип ошибки: {type(e).__name__}")
-            raise Exception(f"Ошибка при суммаризации: {e}")
+            logger.error(f"✗ Ошибка LM Studio: {e}")
+            raise
+
+
+class GigaChatSummarizer:
+    """Суммаризация через GigaChat API."""
+
+    def __init__(self, lm_config: LMStudioConfig):
+        self.lm_config = lm_config
+        self._access_token: Optional[str] = None
+        self._token_expires_at: Optional[datetime] = None
+
+    async def _get_access_token(self, client: httpx.AsyncClient) -> str:
+        """Получает access token для GigaChat."""
+        if self._access_token and self._token_expires_at and datetime.now() < self._token_expires_at:
+            return self._access_token
+
+        url = "https://ngw.devices.sberbank.ru/api/v2/oauth"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "RqUID": os.getenv("GIGACHAT_RQUID", "default-uuid"),
+            "Authorization": "Basic"
+        }
+
+        if self.lm_config.gigachat_auth_method == "credentials":
+            import base64
+            creds = f"{self.lm_config.gigachat_client_id}:{self.lm_config.gigachat_secret}"
+            encoded = base64.b64encode(creds.encode()).decode()
+            headers["Authorization"] += f" {encoded}"
+            data = {"scope": "GIGACHAT_API_PERS"}
+        else:
+            headers["Authorization"] += f" Bearer {self.lm_config.gigachat_token}"
+            data = {"scope": "GIGACHAT_API_PERS"}
+
+        try:
+            response = await client.post(url, headers=headers, data=data)
+            if response.status_code != 200:
+                raise Exception(f"Auth failed {response.status_code}: {response.text}")
+
+            auth_data = response.json()
+            self._access_token = auth_data["access_token"]
+            expires_in = auth_data.get("expires_in", 3600)
+            self._token_expires_at = datetime.now() + timedelta(seconds=expires_in)
+            logger.info("✓ Получен новый access token для GigaChat")
+            return self._access_token
+        except Exception as e:
+            logger.error(f"✗ Ошибка аутентификации GigaChat: {e}")
+            raise
+
+    async def summarize(self, formatted_text: str) -> str:
+        if not formatted_text:
+            raise ValueError("Текст сообщений пуст")
+
+        try:
+            logger.info("📝 Отправляю сообщения в GigaChat для суммаризации...")
+            async with httpx.AsyncClient(timeout=self.lm_config.timeout_seconds) as client:
+                token = await self._get_access_token(client)
+                url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}"
+                }
+                payload = {
+                    "model": self.lm_config.model,
+                    "messages": [
+                        {"role": "system", "content": (
+                            "Ты профессиональный ассистент. Создай краткое резюме диалога. "
+                            "Выдели ключевые моменты, решения, действия. Используй маркированные списки."
+                        )},
+                        {"role": "user", "content": f"Создай краткое резюме:\n\n{formatted_text}"}
+                    ],
+                    "temperature": self.lm_config.temperature,
+                    "max_tokens": self.lm_config.max_tokens
+                }
+                response = await client.post(url, json=payload, headers=headers)
+                if response.status_code != 200:
+                    raise Exception(f"Ошибка {response.status_code}: {response.text}")
+                result = response.json()
+                return result['choices'][0]['message']['content']
+        except Exception as e:
+            logger.error(f"✗ Ошибка GigaChat: {e}")
+            raise
 
 
 class TgSummariseChat:
@@ -502,8 +544,13 @@ class TgSummariseChat:
         self.lm_config = LMStudioConfig(config_path)
 
         self.extractor = TelegramMessageExtractor(self.tg_config)
-        self.summarizer = LMStudioSummarizer(self.lm_config)
         self.message_formatter: Optional[MessageFormatter] = None
+
+        # Выбираем summarizer в зависимости от типа
+        if self.lm_config.llm_type == 'lmstudio':
+            self.summarizer = LMStudioSummarizer(self.lm_config)
+        elif self.lm_config.llm_type == 'gigachat':
+            self.summarizer = GigaChatSummarizer(self.lm_config)
 
     async def summarize_chat_today(
             self,
@@ -517,22 +564,11 @@ class TgSummariseChat:
 
         Returns:
             dict: Результат с суммаризацией и статистикой
-
-        Example:
-            tg = TgSummariseChat()
-            result = await tg.summarize_chat_today("my_chat")
-            result = await tg.summarize_chat_today(-1001234567890)
         """
         try:
-            # Получаем сообщения и название чата
-            messages, chat_name = await self.extractor.get_today_messages(
-                chat_identifier
-            )
-
+            messages, chat_name = await self.extractor.get_today_messages(chat_identifier)
             if not messages:
-                logger.warning(
-                    f"⚠ В чате '{chat_name}' нет сообщений за сегодня"
-                )
+                logger.warning(f"⚠ В чате '{chat_name}' нет сообщений за сегодня")
                 return {
                     "chat_name": chat_name,
                     "total_messages": 0,
@@ -540,20 +576,9 @@ class TgSummariseChat:
                     "statistics": {}
                 }
 
-            # Инициализируем форматер с клиентом
-            self.message_formatter = MessageFormatter(
-                self.extractor.client
-            )
-
-            # Форматируем сообщения с получением имен отправителей
-            formatted_text = await self.message_formatter.format_for_llm(
-                messages
-            )
-
-            # Получаем статистику
+            self.message_formatter = MessageFormatter(self.extractor.client)
+            formatted_text = await self.message_formatter.format_for_llm(messages)
             stats = self.message_formatter.get_statistics(messages)
-
-            # Суммаризируем
             summary = await self.summarizer.summarize(formatted_text)
 
             result = {
@@ -650,12 +675,7 @@ async def main():
         tg_summarise = TgSummariseChat(config_path=args.config)
 
         try:
-            # Определяем идентификатор чата
-            if args.chat_name:
-                chat_identifier = args.chat_name
-            else:
-                chat_identifier = args.chat_id
-
+            chat_identifier = args.chat_name if args.chat_name else args.chat_id
             result = await tg_summarise.summarize_chat_today(chat_identifier)
             print_result(result)
 
