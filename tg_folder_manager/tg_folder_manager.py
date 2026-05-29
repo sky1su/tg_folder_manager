@@ -393,27 +393,32 @@ class TelegramFolderManager:
             new_peers = [p for p in other.include_peers if self._peer_id(p) not in ids]
             if len(new_peers) != len(other.include_peers):
                 removed_count = len(other.include_peers) - len(new_peers)
+
                 if not self.dry_run:
-                    df = DialogFilter(
-                        id=other.id,
-                        title=TextWithEntities(text=other.title, entities=[]),
-                        pinned_peers=[], include_peers=new_peers,
-                        exclude_peers=[], contacts=False,
-                        non_contacts=False, groups=False,
-                        broadcasts=False, bots=False,
-                        exclude_muted=False, exclude_read=False,
-                        exclude_archived=False, emoticon=None
-                    )
-                    await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
-                    logger.info(
-                        f'− Removed {removed_count} chat(s) from "{other.title}" '
-                        f'after moving to "{name}"'
-                    )
+                    if not new_peers:
+                        # Если папка стала пустой - удаляем её
+                        await self.client(UpdateDialogFilterRequest(id=other.id, filter=None))
+                        logger.info(f'− Deleted folder "{other.title}" because it became empty')
+                    else:
+                        # Иначе просто обновляем
+                        df = DialogFilter(
+                            id=other.id,
+                            title=TextWithEntities(text=other.title, entities=[]),
+                            pinned_peers=[], include_peers=new_peers,
+                            exclude_peers=[], contacts=False,
+                            non_contacts=False, groups=False,
+                            broadcasts=False, bots=False,
+                            exclude_muted=False, exclude_read=False,
+                            exclude_archived=False, emoticon=None
+                        )
+                        await self.client(UpdateDialogFilterRequest(id=other.id, filter=df))
+                        logger.info(f'− Removed {removed_count} chat(s) from "{other.title}" after moving to "{name}"')
                 else:
-                    logger.info(
-                        f'− [DRY RUN] Would remove {removed_count} chat(s) from "{other.title}" '
-                        f'after moving to "{name}"'
-                    )
+                    if not new_peers:
+                        logger.info(f'− [DRY RUN] Would delete folder "{other.title}" because it became empty')
+                    else:
+                        logger.info(
+                            f'− [DRY RUN] Would remove {removed_count} chat(s) from "{other.title}" after moving to "{name}"')
                 other.include_peers = new_peers
 
     async def _handle_unmatched(self, unmatched: List[ChatInfo], unmatched_folder: str):
