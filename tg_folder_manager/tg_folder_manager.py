@@ -10,7 +10,7 @@ from os import getenv
 import yaml
 import re
 
-from telethon import TelegramClient
+from telethon import TelegramClient, connection
 from telethon.tl.functions.messages import GetDialogFiltersRequest, UpdateDialogFilterRequest
 from telethon.tl.types import (
     DialogFilter,
@@ -137,7 +137,8 @@ class TelegramFolderManager:
             self,
             unmatched_strategy: UnmatchedChatsStrategy = UnmatchedChatsStrategy.IGNORE,
             warn_on_duplicates: bool = True,
-            dry_run: bool = False
+            dry_run: bool = False,
+            proxy: Optional[tuple] = None
     ):
         load_dotenv()
         session = getenv('app_title', 'telegram_session')
@@ -145,7 +146,7 @@ class TelegramFolderManager:
         api_hash = getenv('app_api_hash')
         if not api_id or not api_hash:
             raise ValueError('API credentials not set')
-        self.client = TelegramClient(session, int(api_id), api_hash)
+        self.client = TelegramClient(session, int(api_id), api_hash, proxy=proxy)
         self.strategy = unmatched_strategy
         self.warn_dupes = warn_on_duplicates
         self.dry_run = dry_run
