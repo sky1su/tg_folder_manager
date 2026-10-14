@@ -45,12 +45,8 @@ class LMStudioSummarizer(BaseSummarizer):
                 payload = {
                     "model": self.config.model,
                     "messages": [
-                        {"role": "system", "content": (
-                            "Ты профессиональный ассистент, который создает краткое резюме диалога. "
-                            "Выделяй ключевые моменты, решения и действия. "
-                            "Форматируй ответ с использованием маркированных списков. Ответ должен быть строго на русском языке."
-                        )},
-                        {"role": "user", "content": f"Создай краткое резюме:\n\n{text}"}
+                        {"role": "system", "content": self.config.system_prompt},
+                        {"role": "user", "content": self.config.user_prompt_template.format(text=text)}
                     ],
                     "temperature": self.config.temperature,
                     "max_tokens": self.config.max_tokens

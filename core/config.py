@@ -41,6 +41,8 @@ class LLMConfig(BaseModel):
     gigachat_client_id: Optional[str] = None
     gigachat_secret: Optional[str] = None
     gigachat_token: Optional[str] = None
+    system_prompt: str = "Ты профессиональный ассистент, который создает краткое резюме диалога. Выделяй ключевые моменты, решения и действия. Форматируй ответ с использованием маркированных списков. Ответ должен быть строго на русском языке."
+    user_prompt_template: str = "Создай краткое резюме:\n\n{text}"
 
 class AppConfig(BaseModel):
     telegram: TelegramCredentials
