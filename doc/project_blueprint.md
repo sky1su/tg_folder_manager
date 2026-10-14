@@ -34,7 +34,7 @@ The project follows a **Layered Modular Architecture** with a strict **Separatio
     *   *Key Models:* `AppConfig`, `TelegramCredentials`, `ProxyConfig`, `LLMConfig`, `FolderManagerSettings`.
 *   **`telegram_service.py`**: A high-level wrapper for `Telethon`. Manages session lifecycle (`__aenter__`/`__aexit__`) and provides simplified methods for dialogs, filters, and messages.
 *   **`file_service.py`**: Abstracts YAML loading/saving and configuration management.
-*   **`utils.py`**: General utility functions (e.g., proxy URL construction).
+*   **`utils.py`: General utility functions (e.g., proxy URL construction).
 
 ### 2. Folder Manager Module (`tg_folder_manager/`)
 *   **Responsibility**: Automating Telegram folder organization.
@@ -73,9 +73,9 @@ summarizer:
 
 ## ⚙️ Configuration & Data Flow
 
-1.  **Configuration Flow**: `config.yaml` + `.env` $\rightarrow$ `core.config (Pydantic)` $\rightarrow$ `Dependency Injection` $\rightarrow$ `Business Modules`.
-2.  **Telegram Flow**: `run.py` $\rightarrow$ `core.telegram_service` $\rightarrow$ `Telethon` $\rightarrow$ `Telegram API`.
-3.  **Command Flow**: `CLI Args` $\rightarrow$ `run.py` $\rightarrow$ `Module Execution`.
+1. **Configuration Flow**: `config.yaml` + `.env` $\rightarrow$ `core.config (Pydantic)` $\rightarrow$ `Dependency Injection` $\rightarrow$ `Business Modules`. (Detailed guide: [doc/CONFIGURATION-en.md](doc/CONFIGURATION-en.md))
+2. **Telegram Flow**: `run.py` $\rightarrow$ `core.telegram_service` $\rightarrow$ `Telethon` $\rightarrow$ `Telegram API`.
+3. **Command Flow**: `CLI Args` $\rightarrow$ `run.py` $\rightarrow$ `Module Execution`.
 
 ---
 
@@ -83,11 +83,12 @@ summarizer:
 
 When acting on this project, the following rules must be observed:
 
-1.  **Strict Dependency Rule**: Business logic modules (`tg_...`) must **NEVER** instantiate `TelegramClient` directly. They must receive a `TelegramService` instance via their `__init__` method.
-2.  **Configuration Rule**: Do not use `os.getenv` or `yaml.safe_load` inside business logic. Use the validated `AppConfig` object provided by `core.config`.
-3.  **Single Responsibility**: If a change requires updating how Telegram communicates, modify `core/telegram_service.py`. If a change requires changing *how* a summary is formatted, modify `tg_summarise_chat/extractor.py`.
-4.  **Error Handling**: Infrastructure errors (e.g., connection loss) should be raised by `core` and caught/handled by the orchestration layer or the specific business module.
-5.  **No Model Duplication**: All shared data structures (like `ProxyConfig`) must reside in `core/config.py`. Do not redefine them in local modules.
+1. **Strict Dependency Rule**: Business logic modules (`tg_...`) must **NEVER** instantiate `TelegramClient` directly. They must receive a `TelegramService` instance via their `__init__` method.
+2. **Configuration Rule**: Do not use `os.getenv` or `yaml.safe_load` inside business logic. Use the validated `AppConfig` object provided by `core.config`.
+3. **Single Responsibility**: If a change requires updating how Telegram communicates, modify `core/telegram_service.py`. If a change requires changing *how* a summary is formatted, modify `tg_summarise_chat/extractor.py`.
+4. **Error Handling**: Infrastructure errors (e.g., connection loss) should be raised by `core` and caught/handled by the orchestration layer or the specific business module.
+5. **No Model Duplication**: All shared data structures (like `ProxyConfig`) must reside in `core/config.py`. Do not redefine them in local modules.
 
 ---
 *End of Blueprint*
+<EOF>

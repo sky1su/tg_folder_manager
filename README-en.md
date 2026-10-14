@@ -55,9 +55,11 @@ pip install -r requirements.txt
 
 ### 1. Configuration
 Create a `config.yaml` file (you can use the provided example as a template) and fill in your API ID, API Hash, and LLM/Proxy settings.
+Detailed configuration guide: [doc/CONFIGURATION-en.md](doc/CONFIGURATION-en.md)
+
 Supported proxy types: socks5, http, mtproto.
 
-#### **`config.yaml` Structure**
+#### **`config.yaml` Structure
 
 #### **`summarizer` section (LLM Settings)**
 This section allows you to fine-tune the LLM behavior when creating summaries:
@@ -98,6 +100,4 @@ python run.py --summarize <chat_id_or_username> --days 3
 ```
 
 ***
-
-## Development
-The project is built on the principles of modularity and separation of concerns. All infrastructure components (Telegram API, file operations) are encapsulated in the `core/` package.
+<EOF>

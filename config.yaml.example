@@ -1,0 +1,49 @@
+# 1. ОБЯЗАТЕЛЬНЫЙ РАЗДЕЛ: Ваши данные Telegram
+# Получить можно на https://my.telegram.org
+telegram:
+  api_id: 1234567          # Ваш API ID (число)
+  api_hash: "your_api_hash_here" # Ваш API Hash (строка)
+  session_name: "my_session" # Имя файла сессии
+  app_title: "my_app"       # Название приложения
+
+# 2. Настройки прокси
+# Поддерживаются: "socks5", "http", "mtproto"
+proxy:
+  type: "mtproto"          # Тип прокси (socks5, http, mtproto)
+  server: "127.0.0.1"      # IP сервера
+  port: 443                # Порт
+  secret: ""               # Для mtproto: секретный ключ
+  username: ""             # Для socks5/http: логин
+  password: ""             # Для socks5/http: пароль
+
+# 3. Настройки управления папками
+folder_manager:
+  export_enabled: true     # Включить экспорт структуры в YAML
+  export_filename: "folders_export.yaml" # Имя выходного файла
+  dry_run: false           # Режим проверки (не вносить реальных изменений в Telegram)
+  warn_on_duplicates: true # Предупреждать, если чат в нескольких папках
+  unmatched_strategy: "ignore" # Стратегия для чатов без совпадений (ignore, move_to_main, etc.)
+  
+  # Правила сопоставления чатов с папками
+  folders:
+    "Название папки 1":
+      include_patterns:
+        - "Pattern 1"
+        - "Pattern 2"
+      exclude_patterns:
+        - "Exclude Pattern 1"
+        - "Exclude Pattern 2"
+    "Название папки 2":
+      include_patterns:
+        - "Pattern 3"
+      exclude_patterns: []
+
+# 4. Настройки LLM для суммаризации
+summarizer:
+  model: "model_name_here" # Название модели (например, "gpt-4" или название локальной модели)
+  base_url: "http://localhost:1235" # URL API (например, LM Studio или GigaChat)
+  temperature: 0.3           # Творческий коэффициент (0.0 - 1.0)
+  max_tokens: 4096           # Максимальное количество токенов в ответе
+  timeout_seconds: 3600      # Таймаут ожидания ответа LLM
+  system_prompt: "Ты — полезный ассистент. Создай краткое резюме чата на русском языке."
+  user_prompt_template: "Создай краткое резюме следующего текста:\n\n{text}"
