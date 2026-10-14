@@ -1,104 +1,104 @@
-[Русский](README.md) | [**English**](README-en.md)
+[**English**](README-en.md) | [**Русский**](README.md)
+
 # Telegram Folder Manager
 
-Automation of Telegram folder management. The script allows you to automatically sort chats and channels into folders based on patterns and exclusions, as well as export the folder structure to a YAML file. It also supports chat summarization via LLM.
+Telegram folder management automation. The script allows automatically sorting chats and channels based on patterns, as well as creating brief summaries of dialogues using LLMs (LM Studio, GigaChat).
 
-***
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Features
 
-### 📂 Folder Management
-- ✅ Automatic sorting of chats into folders based on patterns
-- ✅ Support for exclude patterns for precise control
-- ✅ Define primary folder — one chat in only one folder
-- ✅ Automatic removal from other folders when moving
-- ✅ **Dry-run mode** — check changes without applying them to Telegram
-- ✅ Export folder structure and group list to YAML file
-- ✅ Count and display number of groups in each folder
-- ✅ Flexible strategies for handling unmatched chats
-- ✅ Duplicate detection (chats in multiple folders)
-- ✅ Support for regular expressions and simple substrings
+- 📂 **Folder Management**: Automatic chat sorting by patterns (regex or substring) with exclusion support.
+- 🛡 **Safety**: `dry-run` mode for previewing changes without applying them in Telegram.
+- 📝 **Summarization**: LLM integration to create chat summaries for a specific period.
+- 📊 **Export**: Ability to export folder structure to a YAML file.
+- 🔍 **Validation**: Strict configuration validation using Pydantic.
 
-### 📝 Chat Summarization
-- ✅ Create brief summaries of the current day's messages
-- ✅ Support for various LLMs (LM Studio, GigaChat)
-- ✅ Formatting messages for optimal LLM context
+## Quick Start
 
-***
-
-## Requirements
+### Requirements
 
 - Python 3.12+
-- Telegram account
-- API ID and API Hash from https://my.telegram.org
+- Telegram account (API ID and API Hash from [my.telegram.org](https://my.telegram.org))
 
-***
+### Installation
 
-## Installation
-
-1. **Clone the repository:**
-
-```
+```bash
+# Clone the repository
 git clone https://github.com/sky1su/tg_folder_manager.git
 cd tg_folder_manager
-```
 
-2. **Install dependencies:**
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # For Windows: .venv\Scripts\activate
 
-```
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-***
+### Running
 
-## Usage
+To run the main module, use:
 
-### 1. Configuration
-Create a `config.yaml` file (you can use the provided example as a template) and fill in your API ID, API Hash, and LLM/Proxy settings.
-Detailed configuration guide: [doc/CONFIGURATION-en.md](doc/CONFIGURATION-en.md)
-
-Supported proxy types: socks5, http, mtproto.
-
-#### **`config.yaml` Structure**
-
-#### **`summarizer` section (LLM Settings)**
-This section allows you to fine-tune the LLM behavior when creating summaries:
-- `model`: Model name (e.g., `gpt-4` or `google/gemma-4`).
-- `base_url`: API URL (for local LLM servers, e.g., `http://localhost:1235`).
-- `temperature`: Creativity parameter (0.0 - 1.0).
-- `max_tokens`: Maximum number of tokens in the response.
-- `timeout_seconds`: API response timeout.
-- `system_prompt`: (Optional) System instruction defining the model's persona and rules.
-- `user_prompt_template`: (Optional) User message template. Must include the `{text}` placeholder where chat text is injected.
-
-**Example:**
-```yaml
-summarizer:
-  model: "gemma-4"
-  base_url: "http://localhost:1235"
-  temperature: 0.7
-  max_tokens: 2048
-  system_prompt: "You are a professional assistant. Summarize the dialogue concisely and clearly."
-  user_prompt_template: "Here is the dialogue text, please summarize it: {text}"
-```
-
-### 2. Folder Management (Default)
-Run the script to automatically sort chats:
-```
+```bash
+# Run using your configuration
 python tg_tool.py
 ```
 
-### 3. Chat Summarization
-To create a summary of messages for a specific period, use the `--summarize` flag. Optionally, use `--days <number>` to specify the number of days (default: 1):
+## Configuration
 
+Settings are stored in the `config.yaml` file.
+
+| Section | Required | Description | Example |
+|---|---:|---|---|
+| `telegram` | Yes | API settings (ID, Hash, session) | `api_id: 123456` |
+| `folder_manager` | Yes | Sorting rules, patterns, dry_run mode | `dry_run: true` |
+| `summarizer` | No | LLM settings (model, base_url, prompts) | `model: "gemma-4"` |
+
+> [!IMPORTANT]
+> Never add real `api_id`, `api_hash`, or tokens to the repository. Use `config.yaml.example` as a template.
+
+## Usage
+
+### Folder Management
+The script automatically analyzes your chats and distributes them into folders according to the rules in `config.yaml`.
+
+### Summarization
+The `tg_summarise_chat` module collects messages and sends them to an LLM to create a brief report.
+
+## Architecture
+
+The system is built based on a **Layered Modular Architecture** with **Separation of Concerns (SoC)**:
+
+```text
+[ CLI / User ] -> [ tg_tool.py ] -> [ Infrastructure (core/) ]
+                                          |
+                                          -> [ Business Logic (modules/) ]
+                                                 |
+                                                 -> [ Telegram / LLM / Filesystem ]
 ```
-# Summary for today (default)
-python tg_tool.py --summarize <chat_id_or_username>
+Detailed architecture is available in [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md).
 
-# Summary for the last 3 days
-python tg_tool.py --summarize <chat_id_or_username> --days 3
+## Testing
+
+```bash
+# Run tests (if configured)
+pytest
 ```
 
-***
-<EOF>
-<EOF>
+## Development
+
+The project follows modularity rules: the business logic in the `tg_folder_manager` and `tg_summarise_chat` modules must be completely independent of the `core` infrastructure layer.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).  
+Before creating a PR: make sure you have updated the configuration files and documentation if you changed the system behavior.
+
+## Security
+
+Do not publish vulnerabilities in Issues. Reporting procedure: [SECURITY.md](SECURITY.md).
+
+## License
+
+The project is licensed under [MIT](LICENSE).
