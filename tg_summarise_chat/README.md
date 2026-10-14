@@ -1,404 +1,66 @@
-# tg_summarise_chat
+# tg_summarise_chat Module
 
-Модуль для суммаризации сообщений из чатов Telegram с помощью LM Studio (локальная LLM).
+A specialized module within the **Telegram Folder Manager** system designed to generate concise summaries of chat conversations using Large Language Models (LLM).
 
-## Описание
+## Overview
 
-`tg_summarise_chat` — это Python модуль, который позволяет:
+The `tg_summarise_chat` module automates the process of:
+- Fetching all messages from a specific Telegram chat for the current day.
+- Formatting messages with sender information and timestamps.
+- Sending the formatted text to a local (or remote) LLM (e.g., **LM Studio**, **GigaChat**) for summarization.
+- Displaying the final summary directly in the console.
 
-- Получать все сообщения из Telegram чата за текущий день
-- Форматировать сообщения с отображением ников/имён отправителей и локального времени
-- Отправлять сообщения в локальную LLM (LM Studio) для автоматической суммаризации
-- Выводить результаты с статистикой в консоль
+## Features
 
-## Возможности
+- 📱 **Smart Extraction**: Retrieves messages from the current day in the user's local timezone.
+- 👤 **Human-Readable**: Converts Telegram IDs into names/usernames for better context.
+- 🧠 **LLM Integration**: Ready-to-use integration with **LM Studio** (via OpenAI-compatible API) and **GigaChat**.
+- ⚙️ **Configurable**: All LLM parameters (temperature, max tokens, timeout, base URL) are manageable via the central `config.yaml`.
+- 🏗 **Modular Design**: Built using the `core` architecture, following strict separation of concerns.
 
-✨ **Ключевые функции:**
+## Architecture & Dependencies
 
-- 📱 Получение сообщений из Telegram чатов по названию или ID
-- 🕐 Автоматическое преобразование времени в локальную временную зону
-- 👤 Отображение ников и имён пользователей вместо ID
-- 🧠 Интеграция с локальной LLM через LM Studio API
-- ⚙️ Полная конфигурируемость через `config.yaml`
-- 🔧 Гибкие параметры суммаризации (температура, макс. токены, timeout)
-- 📊 Статистика по полученным сообщениям
-- 🔐 Безопасное хранение учётных данных в `.env`
+This module is a component of the larger `tg_folder_manager` project. It relies on the `core` package for:
+- **Telegram Connectivity**: via `core.telegram_service`.
+- **Central Configuration**: via `core.config`.
 
-## Требования
+## Configuration
 
-- Python 3.8+
-- Telegram API учётные данные (API ID и API Hash)
-- LM Studio запущена локально (или доступна по сети)
-
-## Установка
-
-### 1. Клонирование репозитория
-
-```
-
-
-git clone https://github.com/sky1su/tg_folder_manager.git
-cd tg_folder_manager
-
-```
-
-### 2. Установка зависимостей
-
-```
-
-pip install -r requirements.txt
-
-```
-
-### 3. Получение Telegram API учётных данных
-
-1. Перейти на https://my.telegram.org
-2. Войти под своей учётной записью
-3. Перейти на вкладку "API development tools"
-4. Создать новое приложение
-5. Скопировать `api_id` и `api_hash`
-
-### 4. Конфигурация
-
-#### Создать файл `.env`
-
-```
-
-
-# .env
-
-# Параметры Telegram API
-
-app_api_id=YOUR_API_ID_HERE
-app_api_hash=YOUR_API_HASH_HERE
-app_title=My Telegram App
-app_short_name=my_tg_app
-
-```
-
-#### Создать/обновить файл `config.yaml`
+Settings are managed through the central `config.yaml` file. Below is the required schema for the summarizer component:
 
 ```yaml
-# config.yaml
-llm_api:
-    # URL к LM Studio API
-    base_url: "http://localhost:1234" 
-    # Название модели
-    model: "qwen/qwen3-8b"
-    # Температура для генерации (0-1)
-    # Меньше = более детерминированно, больше = более креативно
-    temperature: 0.3
-    # Максимальное количество токенов в ответе
-    max_tokens: 500
-    # Время ожидания ответа в секундах
-    # 3600 = 60 минут
-    timeout_seconds: 3600
-
+summarizer:
+  model: "qwen/qwen2.5-7b" # Name of the model in LM Studio
+  temperature: 0.3        # 0.0 to 1.0 (0.3 is recommended)
+  max_tokens: 500         # Maximum length of the summary
+  timeout_seconds: 3600   # Request timeout in seconds
+  # base_url is optional, defaults to LM Studio standard if provided
 ```
 
-## Использование
+*Note: API credentials for Telegram are provided via environment variables (`.env`).*
 
-### Запуск модуля
+## Usage
 
-#### По названию чата
+This module is intended to be used as part of the main application via the `run.py` entry point.
 
+### 1. Installation
+Ensure you have all dependencies installed from the root directory:
+```bash
+pip install -r requirements.txt
 ```
 
-python -m tg_summarise_chat --chat-name "Название чата"
+### 2. Running Summarization
+To generate a summary for a specific chat (by ID or username), use the `--summarize` flag:
 
+```bash
+python run.py --summarize <chat_id_or_username>
 ```
 
-#### По username (для каналов)
-
+**Example:**
+```bash
+python run.py --summarize @my_important_chat
 ```
-
-python -m tg_summarise_chat --chat-name "@channel_username"
-
+OR
+```bash
+python run.py --summarize -100123456789
 ```
-
-#### По ID чата
-
-```
-
-python -m tg_summarise_chat --chat-id -1001234567890
-
-```
-
-#### С пользовательским путём к конфигу
-
-```
-
-python -m tg_summarise_chat --chat-name "Чат" --config /path/to/config.yaml
-
-```
-
-### Пример вывода
-
-```
-
-======================================================================
-Чат: Название чата
-======================================================================
-
-📊 Статистика:
-
-- Всего сообщений: 73
-- Уникальные отправители: 5
-- Первое сообщение: 2025-10-28 10:15:30
-- Последнее сообщение: 2025-10-28 18:45:12
-
-📌 Суммаризация:
-Основные точки из диалога:
-
-- Обсуждение проекта X
-- Команда согласовала сроки доставки
-- Выделены необходимые ресурсы
-- Проблемы и их решения
-- Найдена ошибка в модуле Y
-- Назначен ответственный
-- Следующие шаги
-- Провести встречу в пятницу
-- Подготовить отчёт по метрикам
-
-======================================================================
-
-```
-
-## Архитектура
-
-### Основные компоненты
-
-```
-
-tg_summarise_chat/
-├── __init__.py                    \# Экспорт основных классов
-├── __main__.py                    \# Точка входа для python -m
-└── tg_summarise_chat.py          \# Основной модуль
-
-tg_summarise_chat.py содержит:
-├── TelegramConfig                 \# Конфигурация Telegram API
-├── LMStudioConfig                 \# Конфигурация LM Studio
-├── TelegramMessageExtractor       \# Получение сообщений из Telegram
-├── MessageFormatter               \# Форматирование сообщений
-├── LMStudioSummarizer            \# Суммаризация через LM Studio
-└── TgSummariseChat               \# Главный класс-оркестратор
-
-```
-
-### Ключевые классы
-
-**TelegramConfig** — Управление параметрами подключения к Telegram API из `.env`
-
-**LMStudioConfig** — Управление параметрами LM Studio из `config.yaml`
-
-**TelegramMessageExtractor** — Асинхронное получение сообщений за текущий день
-
-**MessageFormatter** — Форматирование сообщений с:
-- Получением ников пользователей
-- Преобразованием времени в локальную зону
-- Кешированием информации о пользователях
-
-**LMStudioSummarizer** — Отправка сообщений на суммаризацию через HTTP API
-
-**TgSummariseChat** — Главный класс-оркестратор, координирующий работу всех компонентов
-
-## Конфигурация
-
-### Переменные окружения (`.env`)
-
-| Переменная | Описание | Пример |
-|-----------|---------|--------|
-| `app_api_id` | API ID Telegram | `1234567` |
-| `app_api_hash` | API Hash Telegram | `abc123def456` |
-| `app_title` | Название приложения | `My Telegram App` |
-| `app_short_name` | Короткое имя приложения | `my_tg_app` |
-
-### Параметры конфигурации (config.yaml)
-
-| Параметр | Описание | Тип | По умолчанию |
-|----------|---------|-----|--------------|
-| `base_url` | URL LM Studio API | строка | `http://localhost:1234` |
-| `model` | Название модели | строка | `qwen/qwen3-8b` |
-| `temperature` | Креативность ответа (0-1) | число | `0.3` |
-| `max_tokens` | Макс. токены ответа | число | `500` |
-| `timeout_seconds` | Время ожидания ответа (сек) | число | `3600` (60 мин) |
-
-## Требования к системе
-
-### Для запуска модуля
-
-- Python 3.8 или выше
-- pip (менеджер пакетов Python)
-- Интернет соединение (для подключения к Telegram)
-
-### Для суммаризации
-
-- LM Studio запущена локально (http://localhost:1234)
-- Загруженная в LM Studio модель LLM
-- Минимум 4GB RAM (рекомендуется 8GB+)
-- GPU поддержка рекомендуется (NVIDIA, AMD или другая)
-
-## Установка LM Studio
-
-1. Скачать LM Studio с [lmstudio.ai](https://lmstudio.ai/)
-2. Установить и запустить приложение
-3. Загрузить желаемую модель (например, Qwen 3 8B)
-4. Запустить локальный сервер на порту 1234
-
-## Примеры использования
-
-### Базовое использование в коде
-
-```
-
-import asyncio
-from tg_summarise_chat import TgSummariseChat
-
-async def main():
-tg = TgSummariseChat(config_path="config.yaml")
-
-    try:
-        # По названию чата
-        result = await tg.summarize_chat_today("Название чата")
-        
-        # По ID чата
-        # result = await tg.summarize_chat_today(-1001234567890)
-        
-        print(f"Сообщений: {result['total_messages']}")
-        print(f"Суммаризация:\n{result['summary']}")
-        
-    finally:
-        await tg.close()
-    if __name__ == "__main__":
-asyncio.run(main())
-
-```
-
-### Получение статистики
-
-```
-
-result = await tg.summarize_chat_today("Чат")
-
-stats = result['statistics']
-print(f"Всего сообщений: {stats['total_messages']}")
-print(f"Отправителей: {stats['unique_senders']}")
-print(f"Период: {stats['first_message_time']} - {stats['last_message_time']}")
-
-```
-
-## Возможные ошибки и решения
-
-### "Чат не найден"
-
-**Причина:** Указано неправильное название или ID чата
-
-**Решение:**
-- Убедитесь, что у вас есть доступ к чату
-- Используйте точное название чата
-- Для групп используйте полный ID (с минусом, например: `-1001234567890`)
-
-### "Не удается подключиться к LM Studio"
-
-**Причина:** LM Studio не запущена или недоступна
-
-**Решение:**
-- Запустите LM Studio
-- Убедитесь, что сервер работает на http://localhost:1234
-- Проверьте параметр `base_url` в `config.yaml`
-
-### "Timeout при ожидании ответа"
-
-**Причина:** Модель обрабатывает слишком долго
-
-**Решение:**
-- Увеличьте `timeout_seconds` в `config.yaml`
-- Уменьшите `max_tokens` для ускорения обработки
-- Используйте более быструю модель
-
-### "Сессия Telegram требует повторной авторизации"
-
-**Причина:** Сессия истекла
-
-**Решение:**
-- Удалите файл сессии (например, `my_tg_app.session`)
-- Модуль запросит повторную авторизацию при следующем запуске
-
-## Структура проекта
-
-```
-
-tg_summarise_chat/
-├── tg_summarise_chat/
-│   ├── __init__.py               \# Экспорт классов модуля
-│   ├── __main__.py               \# Точка входа для python -m
-│   └── tg_summarise_chat.py      \# Основной модуль с классами
-│
-├── config.yaml                   \# Конфигурация LM Studio
-├── .env                          \# Параметры Telegram (НЕ коммитить!)
-├── .gitignore                    \# Исключение файлов из Git
-├── requirements.txt              \# Зависимости проекта
-├── README.md                     \# Документация
-└── setup.py                      \# Конфигурация пакета (опционально)
-
-```
-
-## Логирование
-
-Модуль использует встроенный Python logging с форматом:
-
-```
-
-2025-10-28 18:07:00,123 - tg_summarise_chat.tg_summarise_chat - INFO - ✓ Сообщение
-
-```
-
-Уровни логирования:
-- **INFO** — основные операции
-- **ERROR** — ошибки
-- **DEBUG** — подробная отладочная информация (можно включить в коде)
-
-## Производительность
-
-### Примерные времена выполнения
-
-- Получение 100 сообщений: ~2-3 секунды
-- Суммаризация 100 сообщений: 1-5 минут (зависит от модели и оборудования)
-- Преобразование времени и имён: <100ms
-
-### Рекомендации для оптимизации
-
-- Используйте более компактные модели для быстрой обработки
-- Увеличивайте `temperature` для получения более кратких ответов
-- Уменьшайте `max_tokens` если суммаризация занимает слишком долго
-
-## Безопасность
-
-⚠️ **Важно:**
-
-- **Никогда не коммитьте `.env`** файл с реальными учётными данными
-- Используйте `.gitignore` для исключения чувствительных файлов:
-```
-
-.env
-*.session
-*.session-journal
-__pycache__/
-*.pyc
-
-```
-- Берегите свои API ID и API Hash
-- Не передавайте конфигурационные файлы третьим лицам
-
-## Лицензия
-
-MIT License — см. файл LICENSE
-
-## Контрибьютинг
-
-Приветствуются pull requests и issues!
-
-## Автор
-
-Разработано как инструмент для управления Telegram чатами.
-

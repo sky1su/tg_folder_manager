@@ -1,25 +1,18 @@
 """
-Модуль для суммаризации сообщений из Telegram чатов с помощью LM Studio.
+Модуль для суммаризации сообщений из Telegram чатов с помощью LLM.
 """
 
-from tg_summarise_chat.tg_summarise_chat import (
-    TgSummariseChat,
-    TelegramConfig,
-    LMStudioConfig,
-    TelegramMessageExtractor,
-    MessageFormatter,
-    LMStudioSummarizer,
-    main
-)
+from .tg_summarise_chat import SummarizerApp, TelegramConfig, SummarizeConfig
+from .extractor import TelegramMessageExtractor
+from .summarizers import LMStudioSummarizer, GigaChatSummarizer
 
 __version__ = "1.0.0"
 __author__ = "Your Name"
 __all__ = [
-    "TgSummariseChat",
+    "SummarizerApp",
     "TelegramConfig",
-    "LMStudioConfig",
+    "SummarizeConfig",
     "TelegramMessageExtractor",
-    "MessageFormatter",
     "LMStudioSummarizer",
-    "main"
+    "GigaChatSummarizer"
 ]
