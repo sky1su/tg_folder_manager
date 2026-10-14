@@ -51,6 +51,24 @@ The project follows a **Layered Modular Architecture** with a strict **Separatio
     2.  `summarizers.py`: Communicates with LLM APIs (LM Studio/GigaChat).
     3.  `tg_summarise_chat.py`: Orchestrates the extraction and summarization process.
 
+#### **LLM Prompt Customization**
+The summarization logic allows customizing the LLM's behavior via `config.yaml`. This is achieved through two new parameters in the `summarizer` section:
+
+- `system_prompt`: (String) Defines the persona and instructions for the LLM.
+- `user_prompt_template`: (String) A template for the user message. It must include the `{text}` placeholder where the actual chat messages will be injected.
+
+**Example configuration (`config.yaml`):**
+```yaml
+summarizer:
+  model: "gpt-4"
+  base_url: "http://localhost:1234"
+  temperature: 0.7
+  max_tokens: 2048
+  timeout_seconds: 60
+  system_prompt: "You are a professional assistant. Summarize the following dialogue in Russian, highlighting key points and decisions."
+  user_prompt_template: "Please provide a summary of the following text: {text}"
+```
+
 ---
 
 ## ⚙️ Configuration & Data Flow
