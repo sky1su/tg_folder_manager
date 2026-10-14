@@ -14,17 +14,18 @@ class TelegramMessageExtractor:
         self.telegram_service = telegram_service
         self._user_cache: Dict[int, str] = {}
 
-    async def get_today_messages(
+    async def get_messages_for_period(
             self,
-            chat_identifier: Union[str, int]
+            chat_identifier: Union[str, int],
+            days: int = 1
     ) -> tuple[List[Message], str]:
         """
-        Получает все сообщения из чата за текущий день.
+        Получает сообщения из чата за указанный период (количество дней).
         """
-        # Границы текущего дня в локальной временной зоне
+        # Границы периода в локальной временной зоне
         now = datetime.now(timezone.utc)
-        today_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=timezone.utc)
-        tomorrow_start = today_start + timedelta(days=1)
+        start_date = datetime.combine(now.date() - timedelta(days=days-1), datetime.min.time(), tzinfo=timezone.utc)
+        tomorrow_start = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
 
         messages = []
 
@@ -32,14 +33,14 @@ class TelegramMessageExtractor:
             client = self.telegram_service.client
             chat = await client.get_entity(chat_identifier)
             chat_name = self._get_chat_name(chat)
-            logger.info(f"✓ Найден чат: {chat_name}")
+            logger.info(f"✓ Найден чат: {chat_name} (период: {days} дн.)")
 
             async for message in client.iter_messages(
                     chat,
                     offset_date=tomorrow_start,
                     reverse=False
             ):
-                if message.date < today_start:
+                if message.date < start_date:
                     break
                 messages.append(message)
 

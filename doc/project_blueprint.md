@@ -47,7 +47,7 @@ The project follows a **Layered Modular Architecture** with a strict **Separatio
 ### 3. Summarizer Module (`tg_summarise_chat/`)
 *   **Responsibility**: Generating daily message summaries using LLMs.
 *   **Workflow**:
-    1.  `extractor.py`: Fetches messages for the current day and formats them for LLM consumption.
+    1.  `extractor.py`: Fetches messages for a specified period (default: 1 day) and formats them for LLM consumption.
     2.  `summarizers.py`: Communicates with LLM APIs (LM Studio/GigaChat).
     3.  `tg_summarise_chat.py`: Orchestrates the extraction and summarization process.
 

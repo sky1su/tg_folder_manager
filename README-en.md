@@ -55,6 +55,7 @@ pip install -r requirements.txt
 
 ### 1. Configuration
 Create a `config.yaml` file (you can use the provided example as a template) and fill in your API ID, API Hash, and LLM/Proxy settings.
+Supported proxy types: socks5, http, mtproto.
 
 ### 2. Folder Management (Default)
 Run the script to automatically sort chats:
@@ -63,9 +64,14 @@ python run.py
 ```
 
 ### 3. Chat Summarization
-To create a summary of messages from today, use the `--summarize` flag:
+To create a summary of messages for a specific period, use the `--summarize` flag. Optionally, use `--days <number>` to specify the number of days (default: 1):
+
 ```
+# Summary for today (default)
 python run.py --summarize <chat_id_or_username>
+
+# Summary for the last 3 days
+python run.py --summarize <chat_id_or_username> --days 3
 ```
 
 ***

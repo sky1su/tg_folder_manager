@@ -2,7 +2,7 @@
 Модуль для суммаризации сообщений из Telegram чатов с помощью LLM.
 """
 
-from .tg_summarise_chat import SummarizerApp, TelegramConfig, SummarizeConfig
+from .tg_summarise_chat import SummarizerApp
 from .extractor import TelegramMessageExtractor
 from .summarizers import LMStudioSummarizer, GigaChatSummarizer
 

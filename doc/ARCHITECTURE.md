@@ -37,7 +37,7 @@ This layer contains the "what" — the actual rules and processes that define th
 #### **Module: Chat Summarizer (`tg_summarise_chat/`)**
 *Focus: Generative AI integration for chat summaries.*
 * **Workflow:** 
-    1. **Extraction:** Fetches and formats chat messages for LLM context.
+    1. **Extraction:** Fetches and formats chat messages for LLM context (supports custom time periods).
     2. **Summarization:** Interacts with LLMs (via LM Studio or GigaChat) to generate summaries.
 
 ---

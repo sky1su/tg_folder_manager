@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List
 import httpx
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from core.config import LLMConfig, ProxyConfig
 from core.utils import build_http_proxy
@@ -21,12 +22,22 @@ class BaseSummarizer(ABC):
         pass
 
 class LMStudioSummarizer(BaseSummarizer):
+    def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None, verbose: bool = False):
+        super().__init__(config, proxy)
+        self.verbose = verbose
+
     async def summarize(self, text: str) -> str:
         if not text:
             raise ValueError("Текст пуст")
 
         proxy_url = build_http_proxy(self.proxy)
-        
+
+        # Bypass proxy for local LLM servers
+        if proxy_url and self.config.base_url:
+            parsed = urlparse(self.config.base_url)
+            if parsed.hostname and parsed.hostname.lower() in ["localhost", "127.0.0.1", "[::1]"]:
+                proxy_url = None
+
         try:
             logger.info("📝 Отправляю сообщения в LM Studio для суммаризации...")
             async with httpx.AsyncClient(proxy=proxy_url, timeout=self.config.timeout_seconds) as client:
@@ -44,11 +55,37 @@ class LMStudioSummarizer(BaseSummarizer):
                     "temperature": self.config.temperature,
                     "max_tokens": self.config.max_tokens
                 }
+                
+                if self.verbose:
+                    logger.info(f"--- DEBUG: Payload sent to LLM ---\n{payload}\n-----------------------------------")
+                
                 response = await client.post(url, json=payload)
+                
+                if self.verbose:
+                    logger.info(f"--- DEBUG: Raw response status: {response.status_code} ---")
+                    logger.info(f"--- DEBUG: Raw response body: {response.text} ---")
+
                 if response.status_code != 200:
                     raise Exception(f"Ошибка {response.status_code}: {response.text}")
+                
                 result = response.json()
-                return result['choices'][0]['message']['content']
+                if 'choices' not in result or not result['choices']:
+                    raise Exception("Unexpected response format: 'choices' not found in response")
+                
+                message = result['choices'][0].get('message', {})
+                content = message.get('content', "").strip()
+                reasoning = message.get('reasoning_content', "").strip()
+
+                if not content and reasoning:
+                    logger.warning("⚠️ Model's 'content' is empty, but 'reasoning_content' contains data. Returning reasoning content.")
+                    return reasoning
+
+                if not content:
+                    finish_reason = result['choices'][0].get('finish_reason')
+                    raise Exception(f"Model returned an empty content. Finish reason: {finish_reason}")
+
+                return content
+                
         except Exception as e:
             logger.error(f"✗ Ошибка LM Studio: {e}")
             raise

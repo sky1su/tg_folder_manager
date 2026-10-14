@@ -3,13 +3,17 @@ from pydantic import BaseModel, Field
 import os
 
 class ProxyConfig(BaseModel):
+    type: str = "socks5"  # "socks5", "http", or "mtproto"
     server: str
     port: int
     secret: Optional[str] = None
-    type: str = "socks5"
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+from typing import List, Dict, Optional, Union
 
 class TelegramCredentials(BaseModel):
-    api_id: str
+    api_id: Union[str, int]
     api_hash: str
     app_title: Optional[str] = None
     app_short_name: Optional[str] = None
@@ -25,6 +29,7 @@ class FolderManagerSettings(BaseModel):
     dry_run: bool = False
     warn_on_duplicates: bool = True
     unmatched_strategy: str = "ignore"
+    folders: Dict[str, FolderSettings] = Field(default_factory=dict)
 
 class LLMConfig(BaseModel):
     model: str

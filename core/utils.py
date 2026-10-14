@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 def build_http_proxy(proxy_cfg: Optional[Any]) -> Optional[str]:
     """Builds a proxy URL for httpx."""
