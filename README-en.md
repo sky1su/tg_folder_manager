@@ -57,6 +57,29 @@ pip install -r requirements.txt
 Create a `config.yaml` file (you can use the provided example as a template) and fill in your API ID, API Hash, and LLM/Proxy settings.
 Supported proxy types: socks5, http, mtproto.
 
+#### **`config.yaml` Structure**
+
+#### **`summarizer` section (LLM Settings)**
+This section allows you to fine-tune the LLM behavior when creating summaries:
+- `model`: Model name (e.g., `gpt-4` or `google/gemma-4`).
+- `base_url`: API URL (for local LLM servers, e.g., `http://localhost:1235`).
+- `temperature`: Creativity parameter (0.0 - 1.0).
+- `max_tokens`: Maximum number of tokens in the response.
+- `timeout_seconds`: API response timeout.
+- `system_prompt`: (Optional) System instruction defining the model's persona and rules.
+- `user_prompt_template`: (Optional) User message template. Must include the `{text}` placeholder where chat text is injected.
+
+**Example:**
+```yaml
+summarizer:
+  model: "gemma-4"
+  base_url: "http://localhost:1235"
+  temperature: 0.7
+  max_tokens: 2048
+  system_prompt: "You are a professional assistant. Summarize the dialogue concisely and clearly."
+  user_prompt_template: "Here is the dialogue text, please summarize it: {text}"
+```
+
 ### 2. Folder Management (Default)
 Run the script to automatically sort chats:
 ```
