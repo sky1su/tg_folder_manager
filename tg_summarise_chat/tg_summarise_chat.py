@@ -15,7 +15,7 @@ from telethon.tl.types import TextWithEntities
 from .extractor import TelegramMessageExtractor
 from .summarizers import LMStudioSummarizer, GigaChatSummarizer
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configuration is handled by the orchestrator in run.py
 logger = logging.getLogger(__name__)
 
 class SummarizerApp:

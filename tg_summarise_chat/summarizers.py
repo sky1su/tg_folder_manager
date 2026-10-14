@@ -13,9 +13,10 @@ from core.utils import build_http_proxy
 logger = logging.getLogger(__name__)
 
 class BaseSummarizer(ABC):
-    def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None):
+    def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None, verbose: bool = False):
         self.config = config
         self.proxy = proxy
+        self.verbose = verbose
 
     @abstractmethod
     async def summarize(self, text: str) -> str:
@@ -23,8 +24,7 @@ class BaseSummarizer(ABC):
 
 class LMStudioSummarizer(BaseSummarizer):
     def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None, verbose: bool = False):
-        super().__init__(config, proxy)
-        self.verbose = verbose
+        super().__init__(config, proxy, verbose)
 
     async def summarize(self, text: str) -> str:
         if not text:
@@ -91,8 +91,8 @@ class LMStudioSummarizer(BaseSummarizer):
             raise
 
 class GigaChatSummarizer(BaseSummarizer):
-    def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None):
-        super().__init__(config, proxy)
+    def __init__(self, config: LLMConfig, proxy: Optional[ProxyConfig] = None, verbose: bool = False):
+        super().__init__(config, proxy, verbose)
         self._access_token = None
         self._token_expires_at = None
 
