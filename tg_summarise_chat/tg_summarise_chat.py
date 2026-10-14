@@ -4,7 +4,6 @@ from typing import Any
 from core.telegram_service import TelegramService
 from core.config import LLMConfig
 
-import logging
 import yaml
 import os
 from pathlib import Path
@@ -15,7 +14,7 @@ from telethon.tl.types import TextWithEntities
 from .extractor import TelegramMessageExtractor
 from .summarizers import LMStudioSummarizer, GigaChatSummarizer
 
-# Configuration is handled by the orchestrator in run.py
+# Configuration is handled by the orchestrator in tg_tool.py
 logger = logging.getLogger(__name__)
 
 class SummarizerApp:

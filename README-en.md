@@ -59,7 +59,7 @@ Detailed configuration guide: [doc/CONFIGURATION-en.md](doc/CONFIGURATION-en.md)
 
 Supported proxy types: socks5, http, mtproto.
 
-#### **`config.yaml` Structure
+#### **`config.yaml` Structure**
 
 #### **`summarizer` section (LLM Settings)**
 This section allows you to fine-tune the LLM behavior when creating summaries:
@@ -85,7 +85,7 @@ summarizer:
 ### 2. Folder Management (Default)
 Run the script to automatically sort chats:
 ```
-python run.py
+python tg_tool.py
 ```
 
 ### 3. Chat Summarization
@@ -93,11 +93,12 @@ To create a summary of messages for a specific period, use the `--summarize` fla
 
 ```
 # Summary for today (default)
-python run.py --summarize <chat_id_or_username>
+python tg_tool.py --summarize <chat_id_or_username>
 
 # Summary for the last 3 days
-python run.py --summarize <chat_id_or_username> --days 3
+python tg_tool.py --summarize <chat_id_or_username> --days 3
 ```
 
 ***
+<EOF>
 <EOF>

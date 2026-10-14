@@ -9,7 +9,7 @@ The system is a modular framework designed for Telegram automation. After a majo
 
 The system is divided into three distinct layers to ensure scalability, testability, and maintainability.
 
-### 1. Orchestration Layer (`run.py`)
+### 1. Orchestration Layer (`tg_tool.py`)
 The highest level of the application. It acts as the "brain" that coordinates the startup and shutdown of the system.
 - **Responsibilities:** 
     - Parsing command-line arguments.
@@ -22,8 +22,8 @@ The foundation of the system. It handles the "how" of interacting with the outsi
 - **Key Components:**
     - **`config.py`**: Centralized configuration management using **Pydantic**. It provides a single, validated source of truth for all application settings.
     - **`telegram_service.py`**: An abstraction layer for the **Telethon** library. It manages the `TelegramClient` lifecycle and provides high-level, simplified methods for the business logic to interact with the Telegram API.
-    - **`file_service.py`**: Handles all filesystem operations (YAML serialization, file I/ing) in a standardized way.
-    - **`utils.py`**: General-purpose utility functions used across the project.
+    - **`file_service.py`**: Handles all filesystem operations (YAML serialization, file i/ng) in a standardized way.
+    - `utils.py`: General-purpose utility functions used across the project.
 
 ### 3. Business Logic Layer (`tg_folder_manager/`, `tg_summarise_chat/`)
 This layer contains the "what" — the actual rules and processes that define the application's value. These modules are **agnostic** to the underlying implementation of Telegram or files.
@@ -65,7 +65,7 @@ Direct access to `os.getenv` or raw file reading within business modules is stri
       [ CLI / User Input ]
                |
                v
-      [ Orchestration (run.py) ]
+      [ Orchestration (tg_tool.py) ]
                |
       +--------+-----------------------------+
       |                                     |
@@ -79,3 +79,4 @@ Direct access to `os.getenv` or raw file reading within business modules is stri
       [ External Systems ]
       (Telegram, LLMs, Filesystem)
 ```
+<EOF>
