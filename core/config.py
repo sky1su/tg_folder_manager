@@ -29,6 +29,7 @@ class FolderManagerSettings(BaseModel):
     dry_run: bool = False
     warn_on_duplicates: bool = True
     unmatched_strategy: str = "ignore"
+    archive_after_move: bool = False
     folders: Dict[str, FolderSettings] = Field(default_factory=dict)
 
 class LLMConfig(BaseModel):

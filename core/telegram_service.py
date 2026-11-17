@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional, Dict, Any
 from telethon import TelegramClient, connection
-from telethon.tl.functions.messages import GetDialogFiltersRequest, UpdateDialogFilterRequest
+from telethon.tl.functions.messages import GetDialogFiltersRequest, UpdateDialogFilterRequest, UpdateDialogRequest
 from telethon.tl.types import DialogFilter, TextWithEntities, Channel, Chat, InputPeerChannel, InputPeerChat
 from core.config import TelegramCredentials, ProxyConfig
 
@@ -58,3 +58,9 @@ class TelegramService:
 
     def get_peer_id(self, peer) -> Optional[int]:
         return getattr(peer, 'channel_id', None) or getattr(peer, 'chat_id', None) or getattr(peer, 'user_id', None)
+
+    async def archive_chat(self, entity):
+        """
+        Moves the specified chat/channel to the archive.
+        """
+        return await self.client(UpdateDialogRequest(entity, archive=True))

@@ -1,0 +1,57 @@
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from core.telegram_service import TelegramService
+from core.config import TelegramCredentials, ProxyConfig
+
+@pytest.fixture
+def credentials():
+    return TelegramCredentials(api_id=12345, api_hash="hash123", session_name="test_session")
+
+@pytest.fixture
+def proxy_config():
+    return ProxyConfig(type="socks5", server="127.0.0.1", port=9050)
+
+@pytest.mark.asyncio
+async def test_telegram_service_lifecycle(credentials):
+    with patch("core.telegram_service.TelegramClient") as MockClient:
+        instance = MockClient.return_value
+        instance.start = AsyncMock()
+        instance.disconnect = AsyncMock()
+        instance.get_dialogs = AsyncMock(return_value=[])
+        
+        async with TelegramService(credentials) as service:
+            assert service.credentials == credentials
+            instance.start.assert_called_once()
+        
+        instance.disconnect.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_telegram_service_get_dialogs(credentials):
+    with patch("core.telegram_service.TelegramClient") as MockClient:
+        instance = MockClient.return_value
+        instance.get_dialogs = AsyncMock(return_value=["dialog1", "dialog2"])
+        
+        async with TelegramService(credentials) as service:
+            dialogs = await service.get_dialogs()
+            assert len(dialogs) == 2
+            assert dialogs == ["dialog1", "dialog2"]
+
+@pytest.mark.asyncio
+async def test_telegram_service_send_message(credentials):
+    with patch("core.telegram_service.TelegramClient") as MockClient:
+        instance = MockClient.return_value
+        instance.send_message = AsyncMock()
+        
+        async with TelegramService(credentials) as service:
+            await service.send_message("peer", "hello")
+            instance.send_message.assert_called_once_with("peer", "hello")
+
+def test_telegram_service_get_peer_id(credentials):
+    service = TelegramService(credentials)
+    
+    class MockPeer:
+        def __init__(self, channel_id):
+            self.channel_id = channel_id
+            
+    peer = MockPeer(12345)
+    assert service.get_peer_id(peer) == 12345

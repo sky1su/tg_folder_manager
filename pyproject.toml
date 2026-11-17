@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tg_folder_manager"
+version = "2.0.0"
+dependencies = []  # Зависимости подтянутся из requirements.txt
+
+[tool.setuptools.packages.find]
+where = "."
+include = ["core*", "tg_folder_manager*", "tg_summarise_chat*"]

@@ -23,6 +23,7 @@ folder_manager:
   dry_run: false           # Режим проверки (не вносить реальных изменений в Telegram)
   warn_on_duplicates: true # Предупреждать, если чат в нескольких папках
   unmatched_strategy: "ignore" # Стратегия для чатов без совпадений (ignore, move_to_main, etc.)
+  archive_after_move: false # Архивировать чат после его перемещения в папку
   
   # Правила сопоставления чатов с папками
   folders:

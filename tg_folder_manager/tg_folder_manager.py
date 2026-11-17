@@ -224,6 +224,21 @@ class TelegramFolderManager:
              # For now, let's just log it if we don't want to change the logic too much.
              pass
 
+        # 4. Archive chats if enabled
+        if self.settings.archive_after_move:
+            archived_count = 0
+            for folder_name, ids in targets.items():
+                for cid in ids:
+                    if cid in self._chat_map:
+                        if not self.dry_run:
+                            await self.telegram.archive_chat(self._chat_map[cid].input_peer)
+                        archived_count += 1
+            if archived_count > 0:
+                if not self.dry_run:
+                    logger.info(f'📦 Archived {archived_count} chat(s) moved to folders')
+                else:
+                    logger.info(f'📦 [DRY RUN] Would archive {archived_count} chat(s) moved to folders')
+
         logger.info("✅ Organization completed.")
     
     async def export_folders_to_yaml(self, filename: str):
