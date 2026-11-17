@@ -1,7 +1,10 @@
 import logging
+from dataclasses import replace
 from typing import List, Dict, Optional, Set, Any
 from datetime import datetime
 import yaml
+
+from telethon.errors import RPCError, FloodWaitError
 
 from telethon.tl.types import (
     DialogFilter,
@@ -18,7 +21,7 @@ from .models import (
     FolderInfo,
     ChatDuplicateInfo
 )
-from core.telegram_service import TelegramService
+from core.telegram_service import TelegramService, ARCHIVE_FOLDER_ID
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,8 @@ class TelegramFolderManager:
                     is_megagroup=getattr(e, 'megagroup', False),
                     is_channel=isinstance(e, Channel) and not getattr(e, 'megagroup', False),
                     is_group=isinstance(e, Chat),
-                    input_peer=peer
+                    input_peer=peer,
+                    is_archived=getattr(d, 'folder_id', None) == ARCHIVE_FOLDER_ID
                 )
                 out.append(ci)
                 self._chat_map[ci.id] = ci
@@ -212,7 +216,7 @@ class TelegramFolderManager:
                         exclude_muted=False, exclude_read=False,
                         exclude_archived=False, emoticon=None
                     )
-                    await self.telegram.client(UpdateDialogFilterRequest(id=nid, filter=df))
+                    await self.telegram.update_dialog_filter(nid, df)
                     logger.info(f'✚ Created new folder "{folder_name}" (ID={nid}, {len(new_peers)} chats)')
                 else:
                     logger.info(f'✚ [DRY RUN] Would create new folder "{folder_name}" (ID={nid}, {len(new_peers)} chats)')
@@ -226,24 +230,61 @@ class TelegramFolderManager:
 
         # 4. Archive chats if enabled
         if self.settings.archive_after_move:
-            archived_count = 0
-            for folder_name, ids in targets.items():
-                for cid in ids:
-                    if cid in self._chat_map:
-                        if not self.dry_run:
-                            await self.telegram.archive_chat(self._chat_map[cid].input_peer)
-                        archived_count += 1
-            if archived_count > 0:
-                if not self.dry_run:
-                    logger.info(f'📦 Archived {archived_count} chat(s) moved to folders')
-                else:
-                    logger.info(f'📦 [DRY RUN] Would archive {archived_count} chat(s) moved to folders')
+            await self._archive_moved_chats(targets)
 
         logger.info("✅ Organization completed.")
+
+    def _select_chats_to_archive(self, targets: Dict[str, Set[int]]) -> List[ChatInfo]:
+        """
+        Returns chats matched to folders that are not archived yet.
+        Checks: chat is known, has an input peer, is not already archived,
+        and is listed only once even if it appears in several targets.
+        """
+        selected: Dict[int, ChatInfo] = {}
+        already_archived = 0
+        for ids in targets.values():
+            for cid in ids:
+                if cid in selected:
+                    continue
+                ci = self._chat_map.get(cid)
+                if ci is None or ci.input_peer is None:
+                    logger.debug(f'📦 Skip chat {cid}: not found in dialogs')
+                    continue
+                if ci.is_archived:
+                    already_archived += 1
+                    logger.debug(f'📦 Skip "{ci.title}": already archived')
+                    continue
+                selected[cid] = ci
+        if already_archived:
+            logger.info(f'📦 Already archived, skipped: {already_archived} chat(s)')
+        return list(selected.values())
+
+    async def _archive_moved_chats(self, targets: Dict[str, Set[int]]) -> int:
+        """Archives matched chats that are not archived yet. Returns count."""
+        candidates = self._select_chats_to_archive(targets)
+        if not candidates:
+            logger.info('📦 No chats to archive')
+            return 0
+        if self.dry_run:
+            logger.info(f'📦 [DRY RUN] Would archive {len(candidates)} chat(s) moved to folders')
+            return 0
+        try:
+            count = await self.telegram.archive_chats([c.input_peer for c in candidates])
+        except FloodWaitError as e:
+            logger.error(f'📦 Archiving aborted: FloodWait {e.seconds}s')
+            return 0
+        except RPCError as e:
+            logger.error(f'📦 Archiving failed: {e}')
+            return 0
+        # Обновляем локальное состояние, чтобы повторный вызов не архивировал повторно
+        for c in candidates:
+            self._chat_map[c.id] = replace(c, is_archived=True)
+        logger.info(f'📦 Archived {count} chat(s) moved to folders')
+        return count
     
     async def export_folders_to_yaml(self, filename: str):
         export_data = {
-            'export_date': datetime.now().iso_format(),
+            'export_date': datetime.now().isoformat(),
             'folders': {}
         }
 

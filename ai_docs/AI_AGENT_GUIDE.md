@@ -33,7 +33,7 @@ This layer abstracts technical details and provides shared services.
     - `LLMConfig`: Settings for AI models (base URL, prompts, etc.).
 - **`telegram_service.py`**: A wrapper for the **Telethon** library.
     - Manages the `TelegramClient` connection.
-    - Provides simplified methods for common operations: `get_dialogs()`, `get_filters()`, `update_dialog_filter()`, `send_message()`.
+    - Provides simplified methods for common operations: `get_dialogs()`, `get_filters()`, `update_dialog_filter()`, `send_message()`, `archive_chats()` (batched `folders.EditPeerFoldersRequest`, `folder_id=1`).
     - Handles proxy configuration (SOCKS5, HTTP, MTProto).
 - **`file_service.py`**: Standardized file operations, primarily for loading the YAML configuration.
 
@@ -46,6 +46,7 @@ Business modules are agnostic to the underlying API implementation; they depend 
     - Uses `ChatMatcher` to map chats to target folders based on patterns.
     - Calculates diffs (added/removed chats) and updates Telegram filters.
     - Supports `dry_run` mode (logs changes without applying them).
+    - Optionally archives matched chats (`archive_after_move`): `_select_chats_to_archive()` skips chats that are already archived (`ChatInfo.is_archived`, i.e. `dialog.folder_id == 1`), unknown or peerless chats and duplicates; `_archive_moved_chats()` handles `dry_run` and Telegram RPC errors.
 - **`matcher.py`**: Contains `ChatMatcher` logic.
     - Implements primary matching: `Exclude Patterns` $\rightarrow$ `Include Patterns`.
     - Supports both regex and simple substring matching.
@@ -69,6 +70,7 @@ Business modules are agnostic to the underlying API implementation; they depend 
 2. `TelegramFolderManager.organize_chats()` $\rightarrow$ `TelegramService.get_dialogs()` & `get_filters()`.
 3. `TelegramFolderManager` $\rightarrow$ `ChatMatcher.match_primary()` (iterates through all chats and config patterns).
 4. `TelegramFolderManager` $\rightarrow$ calculates changes $\rightarrow$ `TelegramService.update_dialog_filter()`.
+5. If `archive_after_move` is enabled: `TelegramFolderManager._archive_moved_chats()` $\rightarrow$ `TelegramService.archive_chats()` (only chats not archived yet).
 
 ### Summarization Flow
 1. `tg_tool.py` $\rightarrow$ initializes `SummarizerApp`.

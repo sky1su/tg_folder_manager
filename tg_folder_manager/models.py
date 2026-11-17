@@ -18,6 +18,7 @@ class ChatInfo:
     is_channel: bool
     is_group: bool
     input_peer: Any
+    is_archived: bool = False
 
 @dataclass(frozen=True)
 class FolderInfo:

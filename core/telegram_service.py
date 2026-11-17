@@ -1,11 +1,17 @@
 import logging
 from typing import List, Optional, Dict, Any
 from telethon import TelegramClient, connection
-from telethon.tl.functions.messages import GetDialogFiltersRequest, UpdateDialogFilterRequest, UpdateDialogRequest
-from telethon.tl.types import DialogFilter, TextWithEntities, Channel, Chat, InputPeerChannel, InputPeerChat
+from telethon.tl.functions.messages import GetDialogFiltersRequest, UpdateDialogFilterRequest
+from telethon.tl.functions.folders import EditPeerFoldersRequest
+from telethon.tl.types import DialogFilter, TextWithEntities, Channel, Chat, InputPeerChannel, InputPeerChat, InputFolderPeer
 from core.config import TelegramCredentials, ProxyConfig
 
 logger = logging.getLogger(__name__)
+
+# Системная peer folder Telegram, в которой хранятся архивные диалоги
+ARCHIVE_FOLDER_ID = 1
+# Максимум пиров в одном запросе folders.editPeerFolders (с запасом)
+ARCHIVE_BATCH_SIZE = 100
 
 class TelegramService:
     def __init__(self, credentials: TelegramCredentials, proxy: Optional[ProxyConfig] = None):
@@ -59,8 +65,25 @@ class TelegramService:
     def get_peer_id(self, peer) -> Optional[int]:
         return getattr(peer, 'channel_id', None) or getattr(peer, 'chat_id', None) or getattr(peer, 'user_id', None)
 
-    async def archive_chat(self, entity):
+    async def archive_chats(self, peers: List[Any]) -> int:
         """
-        Moves the specified chat/channel to the archive.
+        Moves the specified chats/channels to the archive (folder_id=1).
+        Peers are sent in batches via folders.editPeerFolders.
+        Returns the number of peers sent to the archive.
         """
-        return await self.client(UpdateDialogRequest(entity, archive=True))
+        if not peers:
+            return 0
+        sent = 0
+        for i in range(0, len(peers), ARCHIVE_BATCH_SIZE):
+            batch = peers[i:i + ARCHIVE_BATCH_SIZE]
+            await self.client(EditPeerFoldersRequest(
+                folder_peers=[InputFolderPeer(peer=p, folder_id=ARCHIVE_FOLDER_ID) for p in batch]
+            ))
+            sent += len(batch)
+        return sent
+
+    async def archive_chat(self, peer):
+        """
+        Moves a single chat/channel to the archive.
+        """
+        return await self.archive_chats([peer])

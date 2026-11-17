@@ -30,6 +30,9 @@ Settings for automated sorting.
 - `dry_run`: Test mode without making changes to Telegram (`true`/`false`).
 - `warn_on_duplicates`: Warn if a chat is assigned to multiple folders.
 - `unmatched_strategy`: What to do with chats that don't match any folder (`ignore` - ignore, or other strategies).
+- `archive_after_move`: Move chats assigned to folders into the archive (`true`/`false`, default `false`). Only chats that are not archived yet are processed, so repeated runs send nothing twice. Chats are sent in batches of 100 via `folders.editPeerFolders`. With `dry_run: true` only the number of chats that would be archived is logged.
+    - The archive is a system Telegram folder: archived chats remain visible in custom folders unless the folder has "exclude archived" enabled.
+    - An unmuted chat may leave the archive on a new message (depends on the Telegram setting "Keep archived chats").
 - `folders`: Dictionary of folders. Key is the folder name, value is the folder settings:
     - `include_patterns`: List of patterns (regex or substrings) for including chats.
     - `exclude_patterns`: List of patterns for excluding chats.
@@ -65,6 +68,7 @@ folder_manager:
   export_enabled: true
   dry_run: true
   warn_on_duplicates: true
+  archive_after_move: false
   folders:
     "News":
       include_patterns:
